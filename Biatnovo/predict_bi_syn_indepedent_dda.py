@@ -42,9 +42,7 @@ def predict(opt, model, model_ind):
     worker_io.predict(type="DDA")
     worker_denovo = deepnovo_worker_denovo.WorkerDenovo(type="DDA")
     # worker_denovo.search_denovo_bi_SB_indepedent(model, model_ind, worker_io, opt)
-    worker_denovo.search_denovo_bi_SB_indepedent_all(
-        model, model_ind, worker_io, opt, type="DDA"
-    )
+    worker_denovo.search_denovo_bi_SB_indepedent_all(model, model_ind, worker_io, opt, type="DDA")
 
 
 def main():
@@ -65,18 +63,14 @@ def main():
         help="Set to True to do a denovo search.",
     )
 
-    parser.add_argument(
-        "--model", type=str, default="translate.ckpt", help="Training model checkpoint"
-    )
+    parser.add_argument("--model", type=str, default="translate.ckpt", help="Training model checkpoint")
     parser.add_argument(
         "--model_indepedent",
         type=str,
         default="translate.ckpt",
         help="Training model checkpoint indepedent",
     )
-    parser.add_argument(
-        "--predict_dir", type=str, default="predict/", help="Predicting directory"
-    )
+    parser.add_argument("--predict_dir", type=str, default="predict/", help="Predicting directory")
     parser.add_argument(
         "--predict_spectrum",
         type=str,
@@ -113,9 +107,7 @@ def main():
         default=False,
         help="Set to True to use lstm-model.",
     )
-    parser.add_argument(
-        "--cuda", action="store_true", default=False, help="Set to True to use gpu."
-    )
+    parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
     parser.add_argument(
         "--lstm_kmer",
         action="store_true",

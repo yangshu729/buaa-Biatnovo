@@ -22,8 +22,7 @@ class Feature:
 
 
 def statistic_mgf(mgf_file_name):
-    with open(mgf_file_name, 'r') as fr:
-        
+    with open(mgf_file_name, "r") as fr:
         flag = False
         index = 0
         for line in fr:
@@ -40,7 +39,7 @@ def statistic_mgf(mgf_file_name):
             elif line.startswith("SCANS="):
                 continue
             elif line.startswith("RTINSECONDS="):
-               continue
+                continue
             elif line.startswith("SEQ="):
                 continue
             elif line.startswith("END IONS"):
@@ -58,14 +57,13 @@ def statistic_mgf(mgf_file_name):
             else:
                 index += 1
 
-if __name__ == '__main__':
 
-
+if __name__ == "__main__":
     species_name = "clambacteria"
 
     folder_name = "/home/fzx1/cross.9high_80k.exclude_{}/".format(species_name)
 
-    denovo_mgf_file = folder_name + 'clambacteria_spectrum.mgf'
+    denovo_mgf_file = folder_name + "clambacteria_spectrum.mgf"
 
     statistic_mgf(denovo_mgf_file)
     print(num_0_500)

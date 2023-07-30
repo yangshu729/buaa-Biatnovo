@@ -53,12 +53,8 @@ def main():
         help="Set to True to do a denovo search.",
     )
 
-    parser.add_argument(
-        "--model", type=str, default="translate.ckpt", help="Training model checkpoint"
-    )
-    parser.add_argument(
-        "--predict_dir", type=str, default="predict", help="Predicting directory"
-    )
+    parser.add_argument("--model", type=str, default="translate.ckpt", help="Training model checkpoint")
+    parser.add_argument("--predict_dir", type=str, default="predict", help="Predicting directory")
     parser.add_argument(
         "--predict_spectrum",
         type=str,
@@ -95,9 +91,7 @@ def main():
         default=False,
         help="Set to True to use lstm-model.",
     )
-    parser.add_argument(
-        "--cuda", action="store_true", default=False, help="Set to True to use gpu."
-    )
+    parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
     parser.add_argument(
         "--lstm_kmer",
         action="store_true",
