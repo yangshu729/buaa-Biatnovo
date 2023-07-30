@@ -11,23 +11,22 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import deepnovo_config
-import Model.TrainingModel_indepedent as TM
+import Model.TrainingModel as TM
 from six.moves import xrange  # pylint: disable=redefined-builtin
-from DataProcess import deepnovo_worker_io
-from DataProcess.read import read_random_stack
+from DataProcessing import deepnovo_worker_io
+from DataProcessing.read import read_random_stack
 from Model.optim import ScheduledOptim
 
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-# device_ids = [0, 1, 2, 3]
-device_ids = [1]
-# device_ids = [0, 1]
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+device_ids = [6]
 loss_count = 0
 
 def cal_performance(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx, smoothing=False):
     ''' Apply label smoothing if needed '''
+
     loss = cal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx, smoothing)
     pred_forward = pred_forward.max(1)[1]
     gold_forward = gold_forward.contiguous().view(-1)
@@ -45,12 +44,12 @@ def cal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_i
     gold_forward = gold_forward.contiguous().view(-1)
     gold_backward = gold_backward.contiguous().view(-1)
     if smoothing:
+        # 仅计算了forward的loss
         eps = 0.1
         n_class = pred_forward.size(1)
         one_hot = torch.zeros_like(pred_forward).scatter(1, gold_forward.view(-1, 1), 1)
         one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
         log_prb = F.log_softmax(pred_forward, dim=1)
-
         non_pad_mask = gold_forward.ne(trg_pad_idx)
         loss = -(one_hot * log_prb).sum(dim=1)
         loss = loss.masked_select(non_pad_mask).sum()  # average later
@@ -61,6 +60,7 @@ def cal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_i
     return loss
 
 def cal_performance_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx):
+
     zeros_forward = torch.zeros_like(gold_forward, dtype=gold_forward.dtype)
     ones_forward = torch.ones_like(gold_forward, dtype=gold_forward.dtype)
     gold_forward_weight = torch.where(gold_forward == 0, zeros_forward, ones_forward)
@@ -96,7 +96,6 @@ def cal_folcal_loss(pred, gold, gamma = 2):
 
 def get_batch_2(index_list, data_set, bucket_id):
   """TODO(nh2tran): docstring."""
-
   batch_size = len(index_list)
   spectrum_holder_list = []
   candidate_intensity_lists_forward = []
@@ -104,7 +103,6 @@ def get_batch_2(index_list, data_set, bucket_id):
   decoder_inputs_forward = []
   decoder_inputs_backward = []
   for index in index_list:
-    # Get a random entry of encoder and decoder inputs from data,
     (spectrum_holder,
      candidate_intensity_list_forward,
      candidate_intensity_list_backward,
@@ -138,6 +136,7 @@ def get_batch_2(index_list, data_set, bucket_id):
     batch_decoder_inputs_backward.append(
       np.array([decoder_inputs_backward[batch_idx][length_idx]
                 for batch_idx in xrange(batch_size)], dtype=np.int32))
+
     # Create target_weights to be 0 for targets that are padding.
     batch_weight = np.ones(batch_size, dtype=np.float32)
     for batch_idx in xrange(batch_size):
@@ -161,7 +160,6 @@ def create_model(opt, training_mode, device):
   """TODO(nh2tran): docstring."""
   print("".join(["="] * 80))  # section-separating line
   if os.path.exists(os.path.join(opt.train_dir, "translate.ckpt")):
-    # load check_point
     print("loading checkpoint()")
     checkpoint = torch.load(os.path.join(opt.train_dir, "translate.ckpt"))
     model_opt = checkpoint['settings']
@@ -171,11 +169,9 @@ def create_model(opt, training_mode, device):
     model.to(device)
     # model = torch.nn.DataParallel(model, device_ids=device_ids)
   else:
+
     print("create_model()")
     model = TM.TrainingModel(opt, training_mode).to(device)
-    # gptmodel = load
-    # model.decoder = gptmodel.decoder
-    # model.tgr_word_project = gptmodel.tgtrwork_projection
     start_epoch = -1
     # model = torch.nn.DataParallel(model, device_ids=device_ids)
   return model, start_epoch
@@ -215,6 +211,7 @@ def train_cycle(model,
         break
     index_list = range(train_current_spectra[train_bucket_id],
                        train_current_spectra[train_bucket_id] + deepnovo_config.batch_size)
+    # get_batch_01/2
     (spectrum_holder, intensity_inputs_forward, intensity_inputs_backward, decoder_inputs_forward, decoder_inputs_backward, target_weights) \
         = get_batch_2(index_list, train_set, train_bucket_id)
     # monitor the number of spectra that have been processed
@@ -232,7 +229,6 @@ def train_cycle(model,
                                                           decoder_inputs_forward[:decoder_size-1],
                                                           decoder_inputs_backward[:decoder_size-1],
                                                           True)
-
     gold_forward = decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1)
     gold_backward = decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
     loss, n_correct_forward, n_correct_backward, n_word = cal_performance_focal_loss(output_logits_forward,
@@ -244,6 +240,7 @@ def train_cycle(model,
     global loss_count
     loss_count += 1
     optimizer.step_and_update_lr()
+    # note keeping
     n_word_total += n_word # forward + backward
     n_word_correct_forward += n_correct_forward
     n_word_correct_backward += n_correct_backward
@@ -269,7 +266,6 @@ def valid_test(model, opt, valid_set, valid_bucket_pos_id):
             decoder_size = deepnovo_config._buckets[bucket_id]
             spectrum_holder = torch.from_numpy(spectrum_holder).cuda()
             decoder_inputs_forward = torch.Tensor(decoder_inputs_forward).to(torch.int64).cuda()
-            # (batchsize, seq len)
             decoder_inputs_backward = torch.Tensor(decoder_inputs_backward).to(torch.int64).cuda()
             output_logits_forward, output_logits_backward = model(opt,
                                           spectrum_holder,
@@ -285,6 +281,7 @@ def valid_test(model, opt, valid_set, valid_bucket_pos_id):
                                                                                   gold_forward,
                                                                                   gold_backward,
                                                                                   0)
+
             n_word_total += n_word  # forward + backward
             n_word_correct_forward += n_correct_forward
             n_word_correct_backward += n_correct_backward
@@ -296,7 +293,6 @@ def valid_test(model, opt, valid_set, valid_bucket_pos_id):
 def train(opt):
     print("".join(["="] * 80))  # section-separating line
     print("LoadFeature")
-    ### input train and valid data
     worker_io_train = deepnovo_worker_io.WorkerIO(
         input_spectrum_file=opt.train_spectrum,
         input_feature_file=opt.train_feature)
@@ -309,6 +305,8 @@ def train(opt):
     worker_io_valid.get_location()
     feature_index_list_train = worker_io_train.feature_index_list
     feature_index_list_valid = worker_io_valid.feature_index_list
+    # read random stacks to valid_set
+    # ~ print("read random stacks to valid_set")
     valid_set, valid_set_len = read_random_stack(
         worker_io_valid,
         feature_index_list_valid,
@@ -324,6 +322,7 @@ def train(opt):
     with open(train_log_file, 'w') as log_tf, open(valid_log_file, 'w') as log_vf:
         log_tf.write('epoch,step,loss, accuracy_forward, accuracy_backward, accuracy_total\n')
         log_vf.write('epoch,valid_loss, accuracy_forward, accuracy_backward, accuracy_total\n')
+    ### training
     device = torch.device('cuda' if opt.cuda else 'cpu')
     model, start_epoch = create_model(opt, True, device)
     checkpoint_path = os.path.join(opt.train_dir, "translate.ckpt")
@@ -359,6 +358,7 @@ def train(opt):
             epoch_word_correct_total += step_word_correct_forward
             epoch_word_correct_total += step_word_correct_backward
             epoch_word_total += step_word_total
+            # print to log
             with open(train_log_file, 'a') as log_tf:
                 log_tf.write('{epoch},{step},{loss: 8.5f},{accu_f:3.3f},{accu_b:3.3f},{accu_t:3.3f}\n'.format(
                     epoch=epoch, step=step,
@@ -390,6 +390,7 @@ def train(opt):
             min_loss = min(min_loss, valid_loss)
             print("Current min loss:", min_loss)
             checkpoint = {'epoch': epoch, 'settings': opt, 'model': model.state_dict()}
+
             torch.save(checkpoint, checkpoint_path)
             print('    - [Info] The checkpoint file has been updated.')
         else:
@@ -403,12 +404,14 @@ def main():
     python train.py --train --train_dir train_dir --train_spectrum --train_feature --valid_spectrum --valid_feature
      --use_intensity --use_lstm  --cuda
     '''
+
     parser = argparse.ArgumentParser()
     # ==============================================================================
     # FLAGS (options) for train
     # ==============================================================================
     parser.add_argument('--train', action='store_true', default=False,
                         help="Set to True for training.")
+
     parser.add_argument('--train_dir', type=str, default="train/", help="Training directory")
     parser.add_argument('--train_spectrum', type=str, default="train_spectrum",
                         help="Spectrum mgf file to train a new model.")
@@ -442,7 +445,9 @@ def main():
     parser.add_argument('-lr_mul', type=float, default=2.0)
     parser.add_argument('-d_model', type=int, default=512)
     parser.add_argument('-warmup', '--n_warmup_steps', type=int, default=4000)
+
     opt = parser.parse_args()
+
     '''
     Make Train Dir
     '''

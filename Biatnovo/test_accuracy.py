@@ -4,7 +4,7 @@ This script handles the training process.
 
 import argparse
 
-from DataProcess import deepnovo_worker_test
+from DataProcessing import deepnovo_worker_test
 
 
 __author__ = "Si-yu Wu"

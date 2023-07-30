@@ -6,14 +6,13 @@ import argparse
 import os
 import torch
 import deepnovo_config
-import Model.TrainingModel as TM
-import Model.TrainingModel_indepedent as TM_Indepedent
-from DataProcess import deepnovo_worker_io
-from DataProcess import deepnovo_worker_denovo
+import Model.TrainingModel_indepedent as TM
+from DataProcessing import deepnovo_worker_io
+from DataProcessing import deepnovo_worker_denovo
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 def load_model(opt, device):
     checkpoint = torch.load(opt.model, map_location=device)
@@ -22,14 +21,9 @@ def load_model(opt, device):
     print('Trained model state loaded.')
     return model
 
-def load_model_indepedent(opt, device):
-    checkpoint_indepedent = torch.load(opt.model_indepedent, map_location=device)
-    model_inde = TM_Indepedent.TrainingModel(opt, False).to(device)
-    model_inde.load_state_dict(checkpoint_indepedent['model'])
-    print('Trained model state loaded.')
-    return model_inde
 
-def predict(opt, model, model_ind):
+
+def predict(opt, model):
     worker_io = deepnovo_worker_io.WorkerIO(
         input_spectrum_file=opt.predict_spectrum,
         input_feature_file=opt.predict_feature,
@@ -37,8 +31,8 @@ def predict(opt, model, model_ind):
     # change batchsize
     worker_io.predict()
     worker_denovo = deepnovo_worker_denovo.WorkerDenovo()
-    # worker_denovo.search_denovo_bi_SB_indepedent(model, model_ind, worker_io, opt)
-    worker_denovo.search_denovo_bi_SB_indepedent_all(model, model_ind, worker_io, opt)
+    # worker_denovo = deepnovo_worker_denovo_forward_backward.WorkerDenovo()
+    worker_denovo.search_denovo(model, worker_io)
 
 def main():
     '''
@@ -55,7 +49,6 @@ def main():
                         help="Set to True to do a denovo search.")
 
     parser.add_argument('--model', type=str, default="translate.ckpt", help="Training model checkpoint")
-    parser.add_argument('--model_indepedent', type=str, default="translate.ckpt", help="Training model checkpoint indepedent")
     parser.add_argument('--predict_dir', type=str, default="predict/", help="Predicting directory")
     parser.add_argument('--predict_spectrum', type=str, default="predict_spectrum",
                         help="Spectrum mgf file to perform de novo sequencing.")
@@ -93,8 +86,7 @@ def main():
     device = torch.device('cuda' if opt.cuda else 'cpu')
     # load model
     model = load_model(opt, device)
-    model_ind = load_model_indepedent(opt, device)
-    predict(opt, model, model_ind)
+    predict(opt, model)
 
 
 

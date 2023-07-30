@@ -13,8 +13,8 @@ import deepnovo_config
 import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity_dda
-from DataProcess.read import read_single_spectrum_true_feeding
-import DataProcess.read_dda as read_dda
+from DataProcessing.read import read_single_spectrum_true_feeding
+import DataProcessing.read_dda as read_dda
 from test_true_feeding import test_accuracy_score, test_accuracy_score_dda
 from six.moves import xrange  # pylint: disable=redefined-builtin
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

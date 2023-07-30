@@ -8,8 +8,8 @@ import torch
 import deepnovo_config
 import Model.TrainingModel as TM
 import Model.TrainingModel_indepedent as TM_Indepedent
-from DataProcess import deepnovo_worker_io
-from DataProcess import deepnovo_worker_denovo
+from DataProcessing import deepnovo_worker_io
+from DataProcessing import deepnovo_worker_denovo
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
