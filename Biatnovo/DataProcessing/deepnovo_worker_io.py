@@ -24,9 +24,7 @@ from DataProcess.deepnovo_cython_modules import process_spectrum
 class WorkerIO(object):
     """TODO(nh2tran): docstring."""
 
-    def __init__(
-        self, input_spectrum_file, input_feature_file, output_file=None, type="DIA"
-    ):
+    def __init__(self, input_spectrum_file, input_feature_file, output_file=None, type="DIA"):
         """TODO(nh2tran): docstring.
         The input_file could be input_file or input_file_train/valid/test.
         The output_file is None for train/valid/test cases.
@@ -121,10 +119,7 @@ class WorkerIO(object):
                 ms1_list,
             ) = self._parse_feature(feature_location)
             # skip if precursor_mass > MZ_MAX
-            precursor_mass = (
-                precursor_mz * precursor_charge
-                - deepnovo_config.mass_H * precursor_charge
-            )
+            precursor_mass = precursor_mz * precursor_charge - deepnovo_config.mass_H * precursor_charge
             if precursor_mass > self.MZ_MAX:
                 self.feature_count["skipped"] += 1
                 self.feature_count["skipped_mass"] += 1
@@ -138,9 +133,7 @@ class WorkerIO(object):
                 scan_list_middle,
                 scan_list_original,
                 ms1_profile,
-            ) = self._parse_spectrum(
-                precursor_mz, precursor_mass, rt_mean, scan_list, ms1_list
-            )
+            ) = self._parse_spectrum(precursor_mz, precursor_mass, rt_mean, scan_list, ms1_list)
             # update dataset
             spectrum = {
                 "feature_id": feature_id,  # str(feature_index),#scan,
@@ -275,18 +268,11 @@ class WorkerIO(object):
             scan_list_middle = ";".join(predicted["scan_list_middle"])
             scan_list_original = ";".join(predicted["scan_list_original"])
             if predicted["sequence"] and str(predicted["sequence"]) != "[[]]":
-                predicted_sequence = ";".join(
-                    [",".join(x) for x in predicted["sequence"]]
-                )
-                predicted_score = ";".join(
-                    ["{0:.2f}".format(x) for x in predicted["score"]]
-                )
+                predicted_sequence = ";".join([",".join(x) for x in predicted["sequence"]])
+                predicted_score = ";".join(["{0:.2f}".format(x) for x in predicted["score"]])
                 predicted_score_max = "{0:.2f}".format(np.max(predicted["score"]))
                 predicted_position_score = ";".join(
-                    [
-                        ",".join(["{0:.2f}".format(y) for y in x])
-                        for x in predicted["position_score"]
-                    ]
+                    [",".join(["{0:.2f}".format(y) for y in x]) for x in predicted["position_score"]]
                 )
                 if "protein_access_id" in predicted:
                     # predicted_batch is returned from search_db
@@ -317,9 +303,7 @@ class WorkerIO(object):
             )
             print(predicted_row, file=self.output_handle, end="\n")
 
-    def _parse_spectrum(
-        self, precursor_mz, precursor_mass, rt_mean, scan_list, ms1_list
-    ):
+    def _parse_spectrum(self, precursor_mz, precursor_mass, rt_mean, scan_list, ms1_list):
         """TODO(nh2tran): docstring."""
 
         # ~ print("".join(["="] * 80)) # section-separating line
@@ -349,15 +333,9 @@ class WorkerIO(object):
         ### padding zero arrays to the left if not enough neighbor spectra
         if neighbor_left_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_left_count):
-                spectrum_holder_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_forward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_backward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
+                spectrum_holder_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_forward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_backward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
 
         ### parse and add neighbor spectra
         scan_list_middle = []
@@ -373,9 +351,7 @@ class WorkerIO(object):
             ms1_intensity_list_middle.append(ms1_intensity)
         ms1_intensity_max = max(ms1_intensity_list_middle)
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
-        ms1_intensity_list_middle = [
-            x / ms1_intensity_max for x in ms1_intensity_list_middle
-        ]
+        ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         for scan, ms1_intensity in zip(scan_list_middle, ms1_intensity_list_middle):
             spectrum_location = self.spectrum_location_dict[scan]
             self.input_spectrum_handle.seek(spectrum_location)
@@ -415,15 +391,9 @@ class WorkerIO(object):
         ### padding zero arrays to the right if not enough neighbor spectra
         if neighbor_right_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_right_count):
-                spectrum_holder_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_forward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_backward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
+                spectrum_holder_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_forward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_backward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
 
         spectrum_holder = np.vstack(spectrum_holder_list)
         spectrum_original_forward = np.vstack(spectrum_original_forward_list)
@@ -440,9 +410,7 @@ class WorkerIO(object):
             ms1_intensity_list_middle = [0.0] + ms1_intensity_list_middle
         for x in range(neighbor_size_half - neighbor_right_count):
             ms1_intensity_list_middle = ms1_intensity_list_middle + [0.0]
-        assert (
-            len(ms1_intensity_list_middle) == self.neighbor_size
-        ), "Error: ms1 profile"
+        assert len(ms1_intensity_list_middle) == self.neighbor_size, "Error: ms1 profile"
         ms1_profile = np.array(ms1_intensity_list_middle)
 
         return (
@@ -472,9 +440,7 @@ class WorkerIO(object):
         raw_sequence = line[deepnovo_config.col_raw_sequence]
         scan_list = re.split(";", line[deepnovo_config.col_scan_list])
         ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
-        assert len(scan_list) == len(
-            ms1_list
-        ), "Error: scan_list and ms1_list not matched."
+        assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
 
         return (
             feature_id,
@@ -568,9 +534,7 @@ class WorkerI(object):
         self.feature_count = worker_io.feature_count
         self.spectrum_count = worker_io.spectrum_count
 
-    def get_spectrum(
-        self, feature_index_batch, input_feature_file_handle, input_spectrum_file_handle
-    ):
+    def get_spectrum(self, feature_index_batch, input_feature_file_handle, input_spectrum_file_handle):
         """TODO(nh2tran): docstring."""
 
         # ~ print("".join(["="] * 80)) # section-separating line
@@ -592,10 +556,7 @@ class WorkerI(object):
                 ms1_list,
             ) = self._parse_feature(feature_location, input_feature_file_handle)
             # skip if precursor_mass > MZ_MAX
-            precursor_mass = (
-                precursor_mz * precursor_charge
-                - deepnovo_config.mass_H * precursor_charge
-            )
+            precursor_mass = precursor_mz * precursor_charge - deepnovo_config.mass_H * precursor_charge
             if precursor_mass > self.MZ_MAX:
                 continue
 
@@ -654,9 +615,7 @@ class WorkerI(object):
         raw_sequence = line[deepnovo_config.col_raw_sequence]
         scan_list = re.split(";", line[deepnovo_config.col_scan_list])
         ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
-        assert len(scan_list) == len(
-            ms1_list
-        ), "Error: scan_list and ms1_list not matched."
+        assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
 
         return (
             feature_id,
@@ -711,15 +670,9 @@ class WorkerI(object):
         # 如果best scan左边的scan不足一半就补充谱图
         if neighbor_left_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_left_count):
-                spectrum_holder_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_forward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_backward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
+                spectrum_holder_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_forward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_backward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
         # 解析feature 并将补充的
         ### parse and add neighbor spectra
         scan_list_middle = []
@@ -735,9 +688,7 @@ class WorkerI(object):
             ms1_intensity_list_middle.append(ms1_intensity)
         ms1_intensity_max = max(ms1_intensity_list_middle)
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
-        ms1_intensity_list_middle = [
-            x / ms1_intensity_max for x in ms1_intensity_list_middle
-        ]
+        ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         # 遍历feature padding后的每一个scan 以及ms1 intensity list
         for scan, ms1_intensity in zip(scan_list_middle, ms1_intensity_list_middle):
             spectrum_location = self.spectrum_location_dict[scan]
@@ -779,15 +730,9 @@ class WorkerI(object):
         ### padding zero arrays to the right if not enough neighbor spectra
         if neighbor_right_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_right_count):
-                spectrum_holder_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_forward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
-                spectrum_original_backward_list.append(
-                    np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32)
-                )
+                spectrum_holder_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_forward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
+                spectrum_original_backward_list.append(np.zeros(shape=(1, self.MZ_SIZE), dtype=np.float32))
         # 延竖直方向将矩阵堆叠起来
         spectrum_holder = np.vstack(spectrum_holder_list)
         spectrum_original_forward = np.vstack(spectrum_original_forward_list)
@@ -807,9 +752,7 @@ class WorkerI(object):
             ms1_intensity_list_middle = [0.0] + ms1_intensity_list_middle
         for x in range(neighbor_size_half - neighbor_right_count):
             ms1_intensity_list_middle = ms1_intensity_list_middle + [0.0]
-        assert (
-            len(ms1_intensity_list_middle) == self.neighbor_size
-        ), "Error: ms1 profile"
+        assert len(ms1_intensity_list_middle) == self.neighbor_size, "Error: ms1 profile"
         ms1_profile = np.array(ms1_intensity_list_middle)
         # spectrum_holder, spectrum_original_forward, spectrum_original_backward 需要查看一下这三者的含义代表什么
         return (

@@ -1,0 +1,8 @@
+[project]
+name = "biatnovo"
+version = "0.1.0"
+
+[tool.black]
+line-length = 120
+target-version = ['py38']
+include = '\.pyi?$'
