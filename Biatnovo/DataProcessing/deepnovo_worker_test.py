@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 # Get the parent directory's path
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Add the parent directory to sys.path
 sys.path.insert(0, parent_dir)
@@ -18,7 +18,6 @@ import deepnovo_config
 
 
 class WorkerTest(object):
-
     def __init__(self, opt):
         """TODO(nh2tran): docstring."""
 
@@ -42,7 +41,7 @@ class WorkerTest(object):
         self.predicted_list = []
 
         # 增加mass_matrix的初始化
-        self.mass_matrix = np.load('mass_matrix.npy')
+        self.mass_matrix = np.load("mass_matrix.npy")
 
     def test_accuracy(self, db_peptide_list=None):
         """TODO(nh2tran): docstring."""
@@ -51,29 +50,33 @@ class WorkerTest(object):
         print("WorkerTest.test_accuracy()")
 
         # write the accuracy of predicted peptides
-        accuracy_handle = open(self.accuracy_file, 'w')
-        header_list = ["feature_id",
-                       "feature_area",
-                       "target_sequence",
-                       "predicted_sequence",
-                       "predicted_score",
-                       "recall_AA",
-                       "predicted_len",
-                       "target_len",
-                       "scan_list_middle",
-                       "scan_list_original"]
+        accuracy_handle = open(self.accuracy_file, "w")
+        header_list = [
+            "feature_id",
+            "feature_area",
+            "target_sequence",
+            "predicted_sequence",
+            "predicted_score",
+            "recall_AA",
+            "predicted_len",
+            "target_len",
+            "scan_list_middle",
+            "scan_list_original",
+        ]
         header_row = "\t".join(header_list)
         print(header_row, file=accuracy_handle, end="\n")
 
         # write denovo_only peptides
-        denovo_only_handle = open(self.denovo_only_file, 'w')
-        header_list = ["feature_id",
-                       "feature_area",
-                       "predicted_sequence",
-                       "predicted_score",
-                       "predicted_score_max",
-                       "scan_list_middle",
-                       "scan_list_original"]
+        denovo_only_handle = open(self.denovo_only_file, "w")
+        header_list = [
+            "feature_id",
+            "feature_area",
+            "predicted_sequence",
+            "predicted_score",
+            "predicted_score_max",
+            "scan_list_middle",
+            "scan_list_original",
+        ]
         header_row = "\t".join(header_list)
         print(header_row, file=denovo_only_handle, end="\n")
 
@@ -91,9 +94,15 @@ class WorkerTest(object):
             for feature_id, target in self.target_dict.items():
                 target_simplied = target
                 # remove the extension 'mod' from variable modifications
-                target_simplied = ['M' if x == 'M(Oxidation)' else x for x in target_simplied]
-                target_simplied = ['N' if x == 'N(Deamidation)' else x for x in target_simplied]
-                target_simplied = ['Q' if x == 'Q(Deamidation)' else x for x in target_simplied]
+                target_simplied = [
+                    "M" if x == "M(Oxidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "N" if x == "N(Deamidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "Q" if x == "Q(Deamidation)" else x for x in target_simplied
+                ]
                 if target_simplied in db_peptide_list:
                     target_dict_db[feature_id] = target
                 else:
@@ -128,13 +137,12 @@ class WorkerTest(object):
         scan_dict = {}
         cc = 0
         for index, predicted in enumerate(self.predicted_list):
-
             feature_id = predicted["feature_id"]
             feature_area = str(predicted["feature_area"])
             feature_scan_list_middle = predicted["scan_list_middle"]
             feature_scan_list_original = predicted["scan_list_original"]
             if feature_scan_list_original:
-                for scan in re.split(';|\r|\n', feature_scan_list_original):
+                for scan in re.split(";|\r|\n", feature_scan_list_original):
                     if scan in scan_dict:
                         scan_dict[scan]["feature_count"] += 1
                         scan_dict[scan]["feature_list"].append(feature_id)
@@ -144,7 +152,6 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
-
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]
@@ -155,8 +162,12 @@ class WorkerTest(object):
                 best_predicted_sequence = predicted["sequence"][0]
                 best_predicted_score = predicted["score"][0]
 
-                for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
-                    predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
+                for predicted_sequence, predicted_score in zip(
+                    predicted["sequence"], predicted["score"]
+                ):
+                    predicted_AA_id = [
+                        deepnovo_config.vocab[x] for x in predicted_sequence
+                    ]
                     target_AA_id = [deepnovo_config.vocab[x] for x in target]
                     recall_AA = self._match_AA_novor(target_AA_id, predicted_AA_id)
                     # print(predicted_sequence)
@@ -164,8 +175,10 @@ class WorkerTest(object):
                     # print()
                     # cc += 1
                     # if cc == 100 : exit()
-                    if (recall_AA > best_recall_AA
-                            or (recall_AA == best_recall_AA and predicted_score > best_predicted_score)):
+                    if recall_AA > best_recall_AA or (
+                        recall_AA == best_recall_AA
+                        and predicted_score > best_predicted_score
+                    ):
                         best_recall_AA = recall_AA
                         best_predicted_sequence = predicted_sequence[:]
                         best_predicted_score = predicted_score
@@ -190,39 +203,46 @@ class WorkerTest(object):
                 recall_AA = "{0:d}".format(recall_AA)
                 predicted_len = "{0:d}".format(predicted_len)
                 target_len = "{0:d}".format(target_len)
-                print_list = [feature_id,
-                              feature_area,
-                              target_sequence,
-                              predicted_sequence,
-                              predicted_score,
-                              recall_AA,
-                              predicted_len,
-                              target_len,
-                              feature_scan_list_middle,
-                              feature_scan_list_original]
+                print_list = [
+                    feature_id,
+                    feature_area,
+                    target_sequence,
+                    predicted_sequence,
+                    predicted_score,
+                    recall_AA,
+                    predicted_len,
+                    target_len,
+                    feature_scan_list_middle,
+                    feature_scan_list_original,
+                ]
                 print_row = "\t".join(print_list)
                 print(print_row, file=accuracy_handle, end="\n")
             else:
                 predicted_only += 1
-                predicted_sequence = ';'.join([','.join(x) for x in predicted["sequence"]])
-                predicted_score = ';'.join(['{0:.2f}'.format(x) for x in predicted["score"]])
+                predicted_sequence = ";".join(
+                    [",".join(x) for x in predicted["sequence"]]
+                )
+                predicted_score = ";".join(
+                    ["{0:.2f}".format(x) for x in predicted["score"]]
+                )
                 if predicted["score"]:
-                    predicted_score_max = '{0:.2f}'.format(np.max(predicted["score"]))
+                    predicted_score_max = "{0:.2f}".format(np.max(predicted["score"]))
                 else:
-                    predicted_score_max = ''
-                print_list = [feature_id,
-                              feature_area,
-                              predicted_sequence,
-                              predicted_score,
-                              predicted_score_max,
-                              feature_scan_list_middle,
-                              feature_scan_list_original]
+                    predicted_score_max = ""
+                print_list = [
+                    feature_id,
+                    feature_area,
+                    predicted_sequence,
+                    predicted_score,
+                    predicted_score_max,
+                    feature_scan_list_middle,
+                    feature_scan_list_original,
+                ]
                 print_row = "\t".join(print_list)
                 print(print_row, file=denovo_only_handle, end="\n")
 
         accuracy_handle.close()
         denovo_only_handle.close()
-
 
         print("target_count_total = {0:d}".format(target_count_total))
         print("target_len_total = {0:d}".format(target_len_total))
@@ -237,15 +257,39 @@ class WorkerTest(object):
         print("predicted_len_mass_db: {0:d}".format(predicted_len_mass_db))
         print("predicted_only: {0:d}".format(predicted_only))
         print(recall_AA_total)
-        print("recall peptide total(correct peptide) = {0:.2f}".format(recall_peptide_total))
+        print(
+            "recall peptide total(correct peptide) = {0:.2f}".format(
+                recall_peptide_total
+            )
+        )
         print("recall_AA_total = {0:.4f}".format(recall_AA_total / target_len_total))
         print("recall_AA_db = {0:.4f}".format(recall_AA_total / target_len_db))
-        print("recall_AA_db_mass = {0:.4f}".format(recall_AA_total / target_len_db_mass))
-        print("recall_peptide_total = {0:.4f}".format(recall_peptide_total / target_count_total))
-        print("recall_peptide_db = {0:.4f}".format(recall_peptide_total / target_count_db))
-        print("recall_peptide_db_mass = {0:.4f}".format(recall_peptide_total / target_count_db_mass))
-        print("precision_AA_mass_db  = {0:.4f}".format(recall_AA_total / predicted_len_mass_db))
-        print("precision_peptide_mass_db  = {0:.4f}".format(recall_peptide_total / predicted_count_mass_db))
+        print(
+            "recall_AA_db_mass = {0:.4f}".format(recall_AA_total / target_len_db_mass)
+        )
+        print(
+            "recall_peptide_total = {0:.4f}".format(
+                recall_peptide_total / target_count_total
+            )
+        )
+        print(
+            "recall_peptide_db = {0:.4f}".format(recall_peptide_total / target_count_db)
+        )
+        print(
+            "recall_peptide_db_mass = {0:.4f}".format(
+                recall_peptide_total / target_count_db_mass
+            )
+        )
+        print(
+            "precision_AA_mass_db  = {0:.4f}".format(
+                recall_AA_total / predicted_len_mass_db
+            )
+        )
+        print(
+            "precision_peptide_mass_db  = {0:.4f}".format(
+                recall_peptide_total / predicted_count_mass_db
+            )
+        )
 
     def test_accuracy_position_bleu(self, db_peptide_list=None):
         """TODO(nh2tran): docstring."""
@@ -262,9 +306,15 @@ class WorkerTest(object):
             for feature_id, target in self.target_dict.items():
                 target_simplied = target
                 # remove the extension 'mod' from variable modifications
-                target_simplied = ['M' if x == 'M(Oxidation)' else x for x in target_simplied]
-                target_simplied = ['N' if x == 'N(Deamidation)' else x for x in target_simplied]
-                target_simplied = ['Q' if x == 'Q(Deamidation)' else x for x in target_simplied]
+                target_simplied = [
+                    "M" if x == "M(Oxidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "N" if x == "N(Deamidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "Q" if x == "Q(Deamidation)" else x for x in target_simplied
+                ]
 
                 if target_simplied in db_peptide_list:
                     target_dict_db[feature_id] = target
@@ -299,12 +349,11 @@ class WorkerTest(object):
         scan_dict = {}
         cc = 0
         for index, predicted in enumerate(self.predicted_list):
-
             feature_id = predicted["feature_id"]
 
             feature_scan_list_original = predicted["scan_list_original"]
             if feature_scan_list_original:
-                for scan in re.split(';|\r|\n', feature_scan_list_original):
+                for scan in re.split(";|\r|\n", feature_scan_list_original):
                     if scan in scan_dict:
                         scan_dict[scan]["feature_count"] += 1
                         scan_dict[scan]["feature_list"].append(feature_id)
@@ -314,24 +363,26 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
-
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]
                 target_len = len(target)
 
-                for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
+                for predicted_sequence, predicted_score in zip(
+                    predicted["sequence"], predicted["score"]
+                ):
                     # predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
                     # target_AA_id = [deepnovo_config.vocab[x] for x in target]
                     predicted_AA_id = [x for x in predicted_sequence]
                     target_AA_id = [x for x in target]
-                    position_bleu = self._cal_position_bleu(target_AA_id, predicted_AA_id)
+                    position_bleu = self._cal_position_bleu(
+                        target_AA_id, predicted_AA_id
+                    )
                     # print(predicted_sequence)
                     # print(target, position_bleu)
                     # print()
                     # cc += 1
                     # if cc == 100: exit()
-
 
                 position_bleu_total += position_bleu
                 predicted_len = len(predicted_sequence)
@@ -353,10 +404,26 @@ class WorkerTest(object):
         print("predicted_len_mass_db: {0:d}".format(predicted_len_mass_db))
         # print("predicted_only: {0:d}".format(predicted_only))
         print("position_bleu_total = {0:.4f}".format(position_bleu_total))
-        print("average position_bleu_total = {0:.4f}".format(position_bleu_total / target_count_total))
-        print("average position_bleu_total_db_mass = {0:.4f}".format(position_bleu_total / target_count_db_mass))
-        print("average position_bleu_predicted = {0:.4f}".format(position_bleu_total / predicted_count_mass_db))
-        print("average position_bleu_predicted1 = {0:.4f}".format(position_bleu_total / predicted_len_mass_db))
+        print(
+            "average position_bleu_total = {0:.4f}".format(
+                position_bleu_total / target_count_total
+            )
+        )
+        print(
+            "average position_bleu_total_db_mass = {0:.4f}".format(
+                position_bleu_total / target_count_db_mass
+            )
+        )
+        print(
+            "average position_bleu_predicted = {0:.4f}".format(
+                position_bleu_total / predicted_count_mass_db
+            )
+        )
+        print(
+            "average position_bleu_predicted1 = {0:.4f}".format(
+                position_bleu_total / predicted_len_mass_db
+            )
+        )
 
     def test_accuracy_smith_waterman(self, db_peptide_list=None):
         """TODO(nh2tran): docstring."""
@@ -373,9 +440,15 @@ class WorkerTest(object):
             for feature_id, target in self.target_dict.items():
                 target_simplied = target
                 # remove the extension 'mod' from variable modifications
-                target_simplied = ['M' if x == 'M(Oxidation)' else x for x in target_simplied]
-                target_simplied = ['N' if x == 'N(Deamidation)' else x for x in target_simplied]
-                target_simplied = ['Q' if x == 'Q(Deamidation)' else x for x in target_simplied]
+                target_simplied = [
+                    "M" if x == "M(Oxidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "N" if x == "N(Deamidation)" else x for x in target_simplied
+                ]
+                target_simplied = [
+                    "Q" if x == "Q(Deamidation)" else x for x in target_simplied
+                ]
                 if target_simplied in db_peptide_list:
                     target_dict_db[feature_id] = target
                 else:
@@ -408,12 +481,11 @@ class WorkerTest(object):
         # record scan with multiple features
         scan_dict = {}
         for index, predicted in enumerate(self.predicted_list):
-
             feature_id = predicted["feature_id"]
 
             feature_scan_list_original = predicted["scan_list_original"]
             if feature_scan_list_original:
-                for scan in re.split(';|\r|\n', feature_scan_list_original):
+                for scan in re.split(";|\r|\n", feature_scan_list_original):
                     if scan in scan_dict:
                         scan_dict[scan]["feature_count"] += 1
                         scan_dict[scan]["feature_list"].append(feature_id)
@@ -423,18 +495,23 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
-
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]
                 target_len = len(target)
 
-                for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
+                for predicted_sequence, predicted_score in zip(
+                    predicted["sequence"], predicted["score"]
+                ):
                     # predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
                     # target_AA_id = [deepnovo_config.vocab[x] for x in target]
-                    predicted_AA_id = [deepnovo_config.vocab[x] - 3 for x in predicted_sequence]
+                    predicted_AA_id = [
+                        deepnovo_config.vocab[x] - 3 for x in predicted_sequence
+                    ]
                     target_AA_id = [deepnovo_config.vocab[x] - 3 for x in target]
-                    sw_score = self._cal_smith_waterman(target_AA_id, predicted_AA_id, 1, 1)
+                    sw_score = self._cal_smith_waterman(
+                        target_AA_id, predicted_AA_id, 1, 1
+                    )
 
                 sw_score_total += sw_score
                 predicted_len = len(predicted_sequence)
@@ -444,21 +521,38 @@ class WorkerTest(object):
                 predicted_only += 1
 
         print("sw_score_total = {0:.4f}".format(sw_score_total))
-        print("average sw_score_total = {0:.4f}".format(sw_score_total / target_count_total))
-        print("average sw_score_total_db_mass = {0:.4f}".format(sw_score_total / target_count_db_mass))
-        print("average sw_score_predicted= {0:.4f}".format(sw_score_total / predicted_count_mass_db))
-        print("average sw_score_predicted1= {0:.4f}".format(sw_score_total / predicted_len_mass_db))
+        print(
+            "average sw_score_total = {0:.4f}".format(
+                sw_score_total / target_count_total
+            )
+        )
+        print(
+            "average sw_score_total_db_mass = {0:.4f}".format(
+                sw_score_total / target_count_db_mass
+            )
+        )
+        print(
+            "average sw_score_predicted= {0:.4f}".format(
+                sw_score_total / predicted_count_mass_db
+            )
+        )
+        print(
+            "average sw_score_predicted1= {0:.4f}".format(
+                sw_score_total / predicted_len_mass_db
+            )
+        )
 
     def _compute_peptide_mass(self, peptide):
-        """TODO(nh2tran): docstring.
-        """
+        """TODO(nh2tran): docstring."""
 
         # ~ print("".join(["="] * 80)) # section-separating line ===
         # ~ print("WorkerDB: _compute_peptide_mass()")
 
-        peptide_mass = (deepnovo_config.mass_N_terminus
-                        + sum(deepnovo_config.mass_AA[aa] for aa in peptide)
-                        + deepnovo_config.mass_C_terminus)
+        peptide_mass = (
+            deepnovo_config.mass_N_terminus
+            + sum(deepnovo_config.mass_AA[aa] for aa in peptide)
+            + deepnovo_config.mass_C_terminus
+        )
 
         return peptide_mass
 
@@ -476,21 +570,24 @@ class WorkerTest(object):
         col_score = deepnovo_config.pcol_score
         col_scan_list_middle = deepnovo_config.pcol_scan_list_middle
         col_scan_list_original = deepnovo_config.pcol_scan_list_original
-        with open(self.predicted_file, 'r') as handle:
+        with open(self.predicted_file, "r") as handle:
             # header
             handle.readline()
             for line in handle:
-                line_split = re.split('\t|\n', line)
+                line_split = re.split("\t|\n", line)
                 predicted = {}
                 predicted["feature_id"] = line_split[col_feature_id]
                 predicted["feature_area"] = float(line_split[col_feature_area])
                 predicted["scan_list_middle"] = line_split[col_scan_list_middle]
                 predicted["scan_list_original"] = line_split[col_scan_list_original]
                 if line_split[col_sequence]:  # not empty sequence
-                    predicted["sequence"] = [re.split(',', x)
-                                             for x in re.split(';', line_split[col_sequence])]
-                    predicted["score"] = [float(x)
-                                          for x in re.split(';', line_split[col_score])]
+                    predicted["sequence"] = [
+                        re.split(",", x)
+                        for x in re.split(";", line_split[col_sequence])
+                    ]
+                    predicted["score"] = [
+                        float(x) for x in re.split(";", line_split[col_score])
+                    ]
                 else:
                     predicted["sequence"] = [[]]
                     predicted["score"] = [-999]
@@ -506,10 +603,10 @@ class WorkerTest(object):
         print("WorkerTest._get_target()")
 
         target_dict = {}
-        with open(self.target_file, 'r') as handle:
+        with open(self.target_file, "r") as handle:
             header_line = handle.readline()
             for line in handle:
-                line = re.split(',|\r|\n', line)
+                line = re.split(",|\r|\n", line)
                 feature_id = line[0]
                 raw_sequence = line[deepnovo_config.col_raw_sequence]
                 assert raw_sequence, "Error: wrong target format."
@@ -529,17 +626,19 @@ class WorkerTest(object):
         index = 0
         while index < raw_sequence_len:
             if raw_sequence[index] == "(":
-                if peptide[-1] == "C" and raw_sequence[index:index + 8] == "(+57.02)":
+                if peptide[-1] == "C" and raw_sequence[index : index + 8] == "(+57.02)":
                     peptide[-1] = "C(Carbamidomethylation)"
                     index += 8
-                elif peptide[-1] == 'M' and raw_sequence[index:index + 8] == "(+15.99)":
-                    peptide[-1] = 'M(Oxidation)'
+                elif (
+                    peptide[-1] == "M" and raw_sequence[index : index + 8] == "(+15.99)"
+                ):
+                    peptide[-1] = "M(Oxidation)"
                     index += 8
-                elif peptide[-1] == 'N' and raw_sequence[index:index + 6] == "(+.98)":
-                    peptide[-1] = 'N(Deamidation)'
+                elif peptide[-1] == "N" and raw_sequence[index : index + 6] == "(+.98)":
+                    peptide[-1] = "N(Deamidation)"
                     index += 6
-                elif peptide[-1] == 'Q' and raw_sequence[index:index + 6] == "(+.98)":
-                    peptide[-1] = 'Q(Deamidation)'
+                elif peptide[-1] == "Q" and raw_sequence[index : index + 6] == "(+.98)":
+                    peptide[-1] = "Q(Deamidation)"
                     index += 6
                 else:  # unknown modification
                     print("ERROR: unknown modification!")
@@ -586,8 +685,8 @@ class WorkerTest(object):
         # 将I 都换成L
         # print(target)
 
-        target = ['L' if i == 'I' else i for i in target]
-        predicted = ['L' if i == 'I' else i for i in predicted]
+        target = ["L" if i == "I" else i for i in target]
+        predicted = ["L" if i == "I" else i for i in predicted]
         score_total = 0
         for i in range(len(predicted)):
             # 最大值是 1
@@ -606,7 +705,6 @@ class WorkerTest(object):
         return score_total
 
     def _cal_smith_waterman(self, target, predicted, u, v):
-
         a = len(target)
         b = len(predicted)
         S = np.zeros((a + 1, b + 1))
@@ -635,7 +733,3 @@ class WorkerTest(object):
         # print("S = ", S)
         # print(S.max())
         return S.max()
-
-
-
-
