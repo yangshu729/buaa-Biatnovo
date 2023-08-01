@@ -1,6 +1,6 @@
 ### Prerequisites for developing
 1. Install Git LFS.
-    
+
     Install Git LFS and its related packages by running the following commands.
     ```bash
     sudo apt-get update -y
@@ -18,7 +18,7 @@
 ### The steps to run the predict code
 #### Install the python-C library
 
-Navigate to the "Bianovo/CDataProcessing" directory and execute the following command: `python deepnovo_cpython_setup.py build && python deepnovo_cpython_setup.py install`. This command will compile the native I/O related code and install the `DataProcess` library into the global Python path.
+Navigate to the `Bianovo/DataProcess` directory and execute the following command: `python deepnovo_cpython_setup.py build && python deepnovo_cpython_setup.py install`. This command will compile the native I/O related code and install the `DataProcess` library into the global Python path.
 
 To ensure that the package has been installed correctly, you can verify it by running a simple test using the following command: `python Biatnovo/DataProcessing/deepnovo_worker_test.py`
 
@@ -26,8 +26,8 @@ To ensure that the package has been installed correctly, you can verify it by ru
 Unzip the `knapsack.npy.zip`, and put the uncompressed data into the root folder of the repository.
 
 #### Start inference
- 
-Run command: 
+
+Run command:
 ```bash
 python Biatnovo/predict.py --model ckpt_path --predict_spectrum testing_example.spectrum.mgf --predict_feature testing_example.feature.csv --cuda
 ```
