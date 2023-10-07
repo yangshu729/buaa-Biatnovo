@@ -54,15 +54,16 @@ def convert_and_sort_mgf_files_optimized(input_dir, output_file_path, lower_boun
                             scan_prefix = map_to_sample(new_title, lower_bound, window_size)
                             match2 = re.search(r'scan=(\d+)', line)
                             if match2:
-                                scans = scan_prefix + ":" + match2.group(1)                        
-                                buffer.append(f'SCANS={scans}')
+                                scans = scan_prefix + ":" + match2.group(1)                                                        
                             else:
                                 print(f'Failed to find scan= in line:{line}')
+                    elif line.startswith('RTINSECONDS='):
+                        rtinseconds = float(line.split('=')[1])
                     elif line.startswith('PEPMASS='):
                         pepmass = line.split('=')[1].split(' ')[0]
                         buffer.append(f'PEPMASS={pepmass}')
-                    elif line.startswith('RTINSECONDS='):
-                        rtinseconds = float(line.split('=')[1])
+                        buffer.append(f'CHARGE=0')
+                        buffer.append(f'SCANS={scans}')
                         buffer.append(f'RTINSECONDS={rtinseconds / 60}')
                     elif line.startswith('END IONS'):
                         # Append remaining fields and write the buffer to the output file

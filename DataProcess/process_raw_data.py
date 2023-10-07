@@ -143,6 +143,9 @@ def generate_feature_csv(report_df, output_csv_path, scan_range=(400, 1000), win
     new_df['pepmass'] = [''] * len(report_df)
 
     new_df['RTINSECONDS'] = [''] * len(report_df)
+
+    # 删除'scans'列中空值的行
+    new_df = new_df.dropna(subset=['scans'])
     
     # Save the new DataFrame to a new CSV file
     new_df.to_csv(output_csv_path, index=False)
