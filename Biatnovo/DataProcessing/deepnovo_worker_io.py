@@ -440,6 +440,8 @@ class WorkerIO(object):
         raw_sequence = line[deepnovo_config.col_raw_sequence]
         scan_list = re.split(";", line[deepnovo_config.col_scan_list])
         ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
+        if (len(scan_list) != len(ms1_list)):
+            ms1_list = ["1:1"] * len(scan_list)  # mock ms1_list数据
         assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
 
         return (
