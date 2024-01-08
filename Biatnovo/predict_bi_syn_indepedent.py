@@ -60,7 +60,7 @@ def main():
     parser.add_argument(
         "--model_indepedent", type=str, default="translate.ckpt", help="Training model checkpoint indepedent"
     )
-    parser.add_argument("--predict_dir", type=str, default="predict/", help="Predicting directory")
+    parser.add_argument("--predict_dir", type=str, default="predict/out", help="Predicting directory")
     parser.add_argument(
         "--predict_spectrum",
         type=str,

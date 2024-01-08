@@ -3,6 +3,7 @@ This script handles the training process.
 """
 
 import argparse
+import io
 import time
 import numpy as np
 import os
@@ -20,11 +21,12 @@ from Model.optim import ScheduledOptim
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # device_ids = [0, 1, 2, 3]
 device_ids = [1]
 # device_ids = [0, 1]
 loss_count = 0
+# 将标准输出设置为无缓冲
 
 
 def cal_performance(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx, smoothing=False):
@@ -495,8 +497,8 @@ def main():
         "--use_intensity", action="store_true", default=False, help="Set to True to use intensity-model."
     )
     parser.add_argument("--shared", action="store_true", default=False, help="Set to True to use shared weights.")
-    parser.add_argument("--use_lstm", action="store_true", default=False, help="Set to True to use lstm-model.")
-    parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
+    parser.add_argument("--use_lstm", action="store_true", default=True, help="Set to True to use lstm-model.")
+    parser.add_argument("--cuda", action="store_true", default=True, help="Set to True to use gpu.")
     parser.add_argument(
         "--lstm_kmer",
         action="store_true",

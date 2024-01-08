@@ -12,13 +12,14 @@ from __future__ import print_function
 
 import re
 import os
+import sys
 import numpy as np
 import pickle
 
 import deepnovo_config
 import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import process_spectrum
-
+sys.stdout.reconfigure(line_buffering=True)
 
 # 两种WorkerIO 一个训练，一个验证
 class WorkerIO(object):
@@ -683,12 +684,13 @@ class WorkerI(object):
             neighbor_center - neighbor_left_count,
             neighbor_center + neighbor_right_count + 1,
         ):
-            scan = scan_list[index]
+            scan = scan_list[index]  # eg: F1:30623
             scan_list_middle.append(scan)
             ms1_entry = ms1_list[index]
             ms1_intensity = float(re.split(":", ms1_entry)[1])
             ms1_intensity_list_middle.append(ms1_intensity)
-        ms1_intensity_max = max(ms1_intensity_list_middle)
+        #ms1_intensity_max = max(ms1_intensity_list_middle)
+        ms1_intensity_max = 1.0
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
         ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         # 遍历feature padding后的每一个scan 以及ms1 intensity list
@@ -711,12 +713,18 @@ class WorkerI(object):
             # parse fragment ions
             # 跟谱图中的mz和intensity进行关联
             mz_list, intensity_list = self._parse_spectrum_ion(input_file_handle)
+            #np.set_printoptions(threshold=150000)
             # pre-process spectrum
             (
                 spectrum_holder,
                 spectrum_original_forward,
                 spectrum_original_backward,
             ) = process_spectrum(mz_list, intensity_list, precursor_mass)
+            #print(spectrum_holder.shape, spectrum_original_forward.shape, spectrum_original_backward.shape)
+            # self.print_nonzero(spectrum_holder, "spectrum_holder.txt")
+            # self.print_nonzero(spectrum_original_forward, "spectrum_original_forward.txt")
+            # self.print_nonzero(spectrum_original_backward, "spectrum_original_backward.txt")
+     
             # normalize by each individual spectrum
             # ~ spectrum_holder /= np.max(spectrum_holder)
             # ~ spectrum_original_forward /= np.max(spectrum_original_forward)
@@ -765,6 +773,17 @@ class WorkerI(object):
             scan_list,
             ms1_profile,
         )
+
+    def print_nonzero(self, array, filename):
+        with open(filename, "w") as f:
+            # 使用np.nonzero获取非零元素的位置
+            nonzero_indices = np.nonzero(array)
+            # 获取非零元素的值
+            nonzero_values = array[nonzero_indices]
+
+            # 打印非零元素的位置和值
+            for idx, val in zip(zip(*nonzero_indices), nonzero_values):
+                f.write(f"位置: {idx}, 值: {val}\n")
 
     # 读取ms2的mz与intensity的值
     def _parse_spectrum_ion(self, input_file_handle):
