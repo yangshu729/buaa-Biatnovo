@@ -11,7 +11,7 @@ from DataProcessing import deepnovo_worker_denovo
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def load_model(opt, device):
@@ -88,7 +88,7 @@ def main():
     parser.add_argument(
         "--use_lstm",
         action="store_true",
-        default=False,
+        default=True,
         help="Set to True to use lstm-model.",
     )
     parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
@@ -101,7 +101,7 @@ def main():
     parser.add_argument(
         "--beam_search",
         action="store_true",
-        default=False,
+        default=True,
         help="Set to True for beam search.",
     )
     parser.add_argument(

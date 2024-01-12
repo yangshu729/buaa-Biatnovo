@@ -147,7 +147,7 @@ print("MAX_LEN ", MAX_LEN)
 _buckets = [12, 22, 32]
 print("_buckets ", _buckets)
 
-beam_size = 10
+beam_size = 5
 # beam_size = 5
 # ==============================================================================
 # HYPER-PARAMETERS of the NEURAL NETWORKS
@@ -161,7 +161,7 @@ l2_weight = 0.0
 print("l2_weight ", l2_weight)
 
 # embedding_size = 512
-embedding_size = 256
+embedding_size = 512
 print("embedding_size ", embedding_size)
 
 num_layers = 3
@@ -177,15 +177,15 @@ print("keep_dense ", keep_dense)
 batch_size = 32
 print("batch_size ", batch_size)
 
-batch_size_predict = 1
+batch_size_predict = 64
 print("batch_size_predict: ", batch_size_predict)
 
-epoch_stop = 49 + 10  # 10 # 50 # 31800*32/(counter_train = 20568)
+epoch_stop = 10  # 10 # 50 # 31800*32/(counter_train = 20568)
 print("epoch_stop ", epoch_stop)
 
 train_stack_size = 800  # 3000 # 5000
 valid_stack_size = 5000  # 1000 # 3000 # 5000
-test_stack_size = 5690
+test_stack_size = 5000
 
 decode_stack_size = 1000  # 3000
 print("train_stack_size ", train_stack_size)

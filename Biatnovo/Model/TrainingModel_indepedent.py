@@ -25,14 +25,36 @@ class TrainingModel(nn.Module):
         self.spectrum_cnn = Spectrum_cnn()
         self.ion_cnn = Ion_cnn()
         if training_mode:
-            self.transformer = Transformer(26, 256, 6, 8, 32, 32, 256, 256, 0, dropout=0.0)
+            self.transformer = Transformer(
+                deepnovo_config.vocab_size,
+                deepnovo_config.embedding_size,
+                12,
+                8,
+                deepnovo_config.embedding_size // 8,
+                deepnovo_config.embedding_size // 8,
+                deepnovo_config.embedding_size,
+                deepnovo_config.embedding_size * 4,
+                0,
+                dropout=0.2,
+            )
         else:
-            self.transformer = Transformer(26, 256, 6, 8, 32, 32, 256, 256, 0, dropout=0.0)
+            self.transformer = Transformer(
+                deepnovo_config.vocab_size,
+                deepnovo_config.embedding_size,
+                12,
+                8,
+                deepnovo_config.embedding_size // 8,
+                deepnovo_config.embedding_size // 8,
+                deepnovo_config.embedding_size,
+                deepnovo_config.embedding_size * 4,
+                0,
+                dropout=0.0,
+            )
         self.word_emb = nn.Embedding(
             deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID
         )
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
-        self.trg_word_prj = nn.Linear(768, deepnovo_config.vocab_size, bias=False)
+        self.trg_word_prj = nn.Linear(deepnovo_config.embedding_size * 2, deepnovo_config.vocab_size, bias=False)
         # self.trg_word_prj = nn.Linear(256, deepnovo_config.vocab_size, bias=False)
 
     def get_pad_mask(self, seq, pad_idx):

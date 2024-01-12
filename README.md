@@ -18,7 +18,7 @@
 ### The steps to run the predict code
 #### Install the python-C library
 
-Navigate to the `Bianovo/DataProcess` directory and execute the following command: `python deepnovo_cpython_setup.py build && python deepnovo_cpython_setup.py install`. This command will compile the native I/O related code and install the `DataProcess` library into the global Python path.
+Navigate to the `Bianovo/DataProcess` directory and execute the following command: `python deepnovo_cython_setup.py build && python deepnovo_cython_setup.py install`. This command will compile the native I/O related code and install the `DataProcess` library into the global Python path.
 
 To ensure that the package has been installed correctly, you can verify it by running a simple test using the following command: `python Biatnovo/DataProcessing/deepnovo_worker_test.py`
 

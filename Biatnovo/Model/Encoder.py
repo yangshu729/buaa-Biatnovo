@@ -12,8 +12,8 @@ class Spectrum_cnn(nn.Module):
         self.conv1 = nn.Conv2d(1, 4, (5, 5), stride=(5, 1), padding=(0, 2))
         self.conv2 = nn.Conv2d(4, 16, (1, 5), stride=(1, 1), padding=(0, 2))
         self.maxpool2 = nn.MaxPool2d((1, 6), stride=(1, 4), padding=(0, 1))
-        # self.fc = nn.Linear(750, 512)
-        self.fc = nn.Linear(750, 256)
+        self.fc = nn.Linear(750, 512)
+        # self.fc = nn.Linear(750, 256)
 
     def forward(self, spectrum_holder, dropout_keep):
         spectrum_holder = spectrum_holder.view(-1, deepnovo_config.neighbor_size, deepnovo_config.MZ_SIZE, 1)

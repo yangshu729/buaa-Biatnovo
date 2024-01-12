@@ -19,7 +19,9 @@ import pickle
 import deepnovo_config
 import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import process_spectrum
+
 sys.stdout.reconfigure(line_buffering=True)
+
 
 # 两种WorkerIO 一个训练，一个验证
 class WorkerIO(object):
@@ -351,6 +353,7 @@ class WorkerIO(object):
             ms1_intensity = float(re.split(":", ms1_entry)[1])
             ms1_intensity_list_middle.append(ms1_intensity)
         ms1_intensity_max = max(ms1_intensity_list_middle)
+        ms1_intensity_max = 1.0
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
         ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         for scan, ms1_intensity in zip(scan_list_middle, ms1_intensity_list_middle):
@@ -441,7 +444,7 @@ class WorkerIO(object):
         raw_sequence = line[deepnovo_config.col_raw_sequence]
         scan_list = re.split(";", line[deepnovo_config.col_scan_list])
         ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
-        if (len(scan_list) != len(ms1_list)):
+        if len(scan_list) != len(ms1_list):
             ms1_list = ["1:1"] * len(scan_list)  # mock ms1_list数据
         assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
 
@@ -689,7 +692,7 @@ class WorkerI(object):
             ms1_entry = ms1_list[index]
             ms1_intensity = float(re.split(":", ms1_entry)[1])
             ms1_intensity_list_middle.append(ms1_intensity)
-        #ms1_intensity_max = max(ms1_intensity_list_middle)
+        # ms1_intensity_max = max(ms1_intensity_list_middle)
         ms1_intensity_max = 1.0
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
         ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
@@ -713,18 +716,18 @@ class WorkerI(object):
             # parse fragment ions
             # 跟谱图中的mz和intensity进行关联
             mz_list, intensity_list = self._parse_spectrum_ion(input_file_handle)
-            #np.set_printoptions(threshold=150000)
+            # np.set_printoptions(threshold=150000)
             # pre-process spectrum
             (
                 spectrum_holder,
                 spectrum_original_forward,
                 spectrum_original_backward,
             ) = process_spectrum(mz_list, intensity_list, precursor_mass)
-            #print(spectrum_holder.shape, spectrum_original_forward.shape, spectrum_original_backward.shape)
+            # print(spectrum_holder.shape, spectrum_original_forward.shape, spectrum_original_backward.shape)
             # self.print_nonzero(spectrum_holder, "spectrum_holder.txt")
             # self.print_nonzero(spectrum_original_forward, "spectrum_original_forward.txt")
             # self.print_nonzero(spectrum_original_backward, "spectrum_original_backward.txt")
-     
+
             # normalize by each individual spectrum
             # ~ spectrum_holder /= np.max(spectrum_holder)
             # ~ spectrum_original_forward /= np.max(spectrum_original_forward)
