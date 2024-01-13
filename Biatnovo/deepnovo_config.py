@@ -147,7 +147,7 @@ print("MAX_LEN ", MAX_LEN)
 _buckets = [12, 22, 32]
 print("_buckets ", _buckets)
 
-beam_size = 10
+beam_size = 5
 # beam_size = 5
 # ==============================================================================
 # HYPER-PARAMETERS of the NEURAL NETWORKS
@@ -174,18 +174,18 @@ keep_dense = 0.5
 print("keep_conv ", keep_conv)
 print("keep_dense ", keep_dense)
 
-batch_size = 32
+batch_size = 256
 print("batch_size ", batch_size)
 
-batch_size_predict = 1
+batch_size_predict = 128
 print("batch_size_predict: ", batch_size_predict)
 
-epoch_stop = 49 + 10  # 10 # 50 # 31800*32/(counter_train = 20568)
+epoch_stop = 10  # 10 # 50 # 31800*32/(counter_train = 20568)
 print("epoch_stop ", epoch_stop)
 
-train_stack_size = 800  # 3000 # 5000
+train_stack_size = 5000  # 3000 # 5000
 valid_stack_size = 5000  # 1000 # 3000 # 5000
-test_stack_size = 5690
+test_stack_size = 5000
 
 decode_stack_size = 1000  # 3000
 print("train_stack_size ", train_stack_size)
@@ -193,7 +193,7 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_checkpoint = 10  # 100 # 2 # 4 # 200
+steps_per_checkpoint = 100  # 100 # 2 # 4 # 200
 random_test_batches = 10
 print("steps_per_checkpoint ", steps_per_checkpoint)
 print("random_test_batches ", random_test_batches)

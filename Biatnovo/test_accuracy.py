@@ -42,8 +42,8 @@ def main():
     """
     worker_test = deepnovo_worker_test.WorkerTest(opt)
     worker_test.test_accuracy()
-    worker_test.test_accuracy_position_bleu()
-    worker_test.test_accuracy_smith_waterman()
+    # worker_test.test_accuracy_position_bleu()
+    # worker_test.test_accuracy_smith_waterman()
 
 
 if __name__ == "__main__":

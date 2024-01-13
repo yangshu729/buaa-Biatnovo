@@ -21,9 +21,7 @@ from Model.optim import ScheduledOptim
 
 __author__ = "Si-yu Wu"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# device_ids = [0, 1, 2, 3]
-device_ids = [1]
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 # device_ids = [0, 1]
 loss_count = 0
 # 将标准输出设置为无缓冲
@@ -245,8 +243,8 @@ def train_cycle(model, worker_io_train, feature_index_list_train, opt, optimizer
         model.train()
         optimizer.zero_grad()
         spectrum_holder = torch.from_numpy(spectrum_holder).cuda()
-        decoder_inputs_forward = torch.Tensor(decoder_inputs_forward).to(torch.int64).cuda()
-        decoder_inputs_backward = torch.Tensor(decoder_inputs_backward).to(torch.int64).cuda()
+        decoder_inputs_forward = torch.Tensor(np.array(decoder_inputs_forward)).to(torch.int64).cuda()
+        decoder_inputs_backward = torch.Tensor(np.array(decoder_inputs_backward)).to(torch.int64).cuda()
         output_logits_forward, output_logits_backward = model(
             opt,
             spectrum_holder,
@@ -295,9 +293,9 @@ def valid_test(model, opt, valid_set, valid_bucket_pos_id):
             ) = get_batch_2(chunk, valid_set, bucket_id)
             decoder_size = deepnovo_config._buckets[bucket_id]
             spectrum_holder = torch.from_numpy(spectrum_holder).cuda()
-            decoder_inputs_forward = torch.Tensor(decoder_inputs_forward).to(torch.int64).cuda()
+            decoder_inputs_forward = torch.Tensor(np.array(decoder_inputs_forward)).to(torch.int64).cuda()
             # (batchsize, seq len)
-            decoder_inputs_backward = torch.Tensor(decoder_inputs_backward).to(torch.int64).cuda()
+            decoder_inputs_backward = torch.Tensor(np.array(decoder_inputs_backward)).to(torch.int64).cuda()
             output_logits_forward, output_logits_backward = model(
                 opt,
                 spectrum_holder,
@@ -374,6 +372,7 @@ def train(opt):
             epoch_word_correct_total,
             epoch_word_total,
         ) = (0, 0, 0, 0, 0)
+        # 每个step是一个train_stack_size
         for step in range(step_len):
             (
                 step_loss,
@@ -384,6 +383,7 @@ def train(opt):
             ) = train_cycle(
                 model, worker_io_train, feature_index_list_train, opt, optimizer, training_mode=True, step=step
             )
+
             print(
                 "epoch: ",
                 str(epoch),
@@ -413,6 +413,42 @@ def train(opt):
                         accu_t=100 * (step_word_correct_total / step_word_total),
                     )
                 )
+            if step % deepnovo_config.steps_per_checkpoint == 0:
+                (
+                    valid_word_correct_forward,
+                    valid_word_correct_backward,
+                    valid_word_correct_total,
+                    valid_word_total,
+                    valid_loss,
+                ) = valid_test(model, opt, valid_set, valid_bucket_pos_id)
+                print(
+                    "valid : " + "valid word forward accuarcy:",
+                    str(valid_word_correct_forward / (valid_word_total / 2)),
+                    " valid word backward accuarcy:",
+                    str(valid_word_correct_backward / (valid_word_total / 2)),
+                    " valid word accuarcy:",
+                    str(valid_word_correct_total / valid_word_total),
+                    " valid loss:",
+                    str(valid_loss / deepnovo_config.valid_stack_size),
+                )
+                with open(valid_log_file, "a") as log_vf:
+                    log_vf.write(
+                        "{epoch},{valid_lo:3.3f},{accu_f:3.3f},{accu_b:3.3f},{accu_t:3.3f}\n".format(
+                            epoch=epoch,
+                            valid_lo=100 * (valid_loss / deepnovo_config.valid_stack_size),
+                            accu_f=100 * (valid_word_correct_forward / (valid_word_total / 2)),
+                            accu_b=100 * (valid_word_correct_backward / (valid_word_total / 2)),
+                            accu_t=100 * (valid_word_correct_total / valid_word_total),
+                        )
+                    )
+            if valid_loss < min_loss:
+                # save checkpoint
+                valid_count = 0
+                min_loss = min(min_loss, valid_loss)
+                print("Current min loss:", min_loss)
+                checkpoint = {"epoch": epoch, "settings": opt, "model": model.state_dict()}
+                torch.save(checkpoint, checkpoint_path)
+                print("    - [Info] The checkpoint file has been updated.")
         print(
             "epoch :",
             str(epoch),
@@ -507,7 +543,7 @@ def main():
     )
     parser.add_argument("--beam_search", action="store_true", default=False, help="Set to True for beam search.")
     parser.add_argument(
-        "--multiprocessor", type=int, default=1, help="Use multi processors to read data during training."
+        "--multiprocessor", type=int, default=8, help="Use multi processors to read data during training."
     )
     parser.add_argument("-d_inner_hid", type=int, default=2048)
     parser.add_argument("-d_k", type=int, default=64)
@@ -516,7 +552,7 @@ def main():
     parser.add_argument("-n_layers", type=int, default=6)
     parser.add_argument("-lr_mul", type=float, default=2.0)
     parser.add_argument("-d_model", type=int, default=512)
-    parser.add_argument("-warmup", "--n_warmup_steps", type=int, default=4000)
+    parser.add_argument("-warmup", "--n_warmup_steps", type=int, default=400)
     opt = parser.parse_args()
     """
     Make Train Dir
