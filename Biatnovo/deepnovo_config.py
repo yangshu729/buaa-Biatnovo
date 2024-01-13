@@ -174,7 +174,7 @@ keep_dense = 0.5
 print("keep_conv ", keep_conv)
 print("keep_dense ", keep_dense)
 
-batch_size = 32
+batch_size = 64
 print("batch_size ", batch_size)
 
 batch_size_predict = 64
@@ -183,7 +183,7 @@ print("batch_size_predict: ", batch_size_predict)
 epoch_stop = 10  # 10 # 50 # 31800*32/(counter_train = 20568)
 print("epoch_stop ", epoch_stop)
 
-train_stack_size = 800  # 3000 # 5000
+train_stack_size = 5000  # 3000 # 5000
 valid_stack_size = 5000  # 1000 # 3000 # 5000
 test_stack_size = 5000
 
