@@ -193,7 +193,7 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_checkpoint = 10  # 100 # 2 # 4 # 200
+steps_per_checkpoint = 100  # 100 # 2 # 4 # 200
 random_test_batches = 10
 print("steps_per_checkpoint ", steps_per_checkpoint)
 print("random_test_batches ", random_test_batches)
