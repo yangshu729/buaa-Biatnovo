@@ -441,14 +441,14 @@ def train(opt):
                             accu_t=100 * (valid_word_correct_total / valid_word_total),
                         )
                     )
-            if valid_loss < min_loss:
-                # save checkpoint
-                valid_count = 0
-                min_loss = min(min_loss, valid_loss)
-                print("Current min loss:", min_loss)
-                checkpoint = {"epoch": epoch, "settings": opt, "model": model.state_dict()}
-                torch.save(checkpoint, checkpoint_path)
-                print("    - [Info] The checkpoint file has been updated.")
+                if valid_loss < min_loss and step != 0:
+                    # save checkpoint
+                    valid_count = 0
+                    min_loss = min(min_loss, valid_loss)
+                    print("Current min loss:", min_loss)
+                    checkpoint = {"epoch": epoch, "settings": opt, "model": model.state_dict()}
+                    torch.save(checkpoint, checkpoint_path)
+                    print("    - [Info] The checkpoint file has been updated.")
         print(
             "epoch :",
             str(epoch),
