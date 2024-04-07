@@ -384,7 +384,6 @@ class WorkerDenovo(object):
 
     # 双向交互式生成,使用独立预测的前向反向结果
     def search_denovo_bi_SB_indepedent(self, model, model_ind, worker_io, opt):
-        print("".join(["="] * 80))  # section-separating line
         print("WorkerDenovo: search_denovo()")
         predicted_denovo_list = []
 

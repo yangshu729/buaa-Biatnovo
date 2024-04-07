@@ -350,6 +350,7 @@ class WorkerIO(object):
             ms1_intensity = float(re.split(":", ms1_entry)[1])
             ms1_intensity_list_middle.append(ms1_intensity)
         ms1_intensity_max = max(ms1_intensity_list_middle)
+        ms1_intensity_max = 1.0
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
         ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         for scan, ms1_intensity in zip(scan_list_middle, ms1_intensity_list_middle):
@@ -689,6 +690,7 @@ class WorkerI(object):
             ms1_intensity = float(re.split(":", ms1_entry)[1])
             ms1_intensity_list_middle.append(ms1_intensity)
         ms1_intensity_max = max(ms1_intensity_list_middle)
+        ms1_intensity_max = 1
         assert ms1_intensity_max > 0.0, "Error: Zero ms1_intensity_max"
         ms1_intensity_list_middle = [x / ms1_intensity_max for x in ms1_intensity_list_middle]
         # 遍历feature padding后的每一个scan 以及ms1 intensity list

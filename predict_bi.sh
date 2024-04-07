@@ -1,0 +1,1 @@
+python Biatnovo/predict_bi_syn_indepedent.py --model ~/train_dir/translate.ckpt --model_indepedent ~/train_in_dir/translate.ckpt --predict_dir ~/predict_bi_in_dir/predict.txt --predict_spectrum /root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf --predict_feature /root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv

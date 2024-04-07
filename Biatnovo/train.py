@@ -64,6 +64,7 @@ def cal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_i
 
 
 def cal_performance_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx):
+    # pred_forward.shape = (batchsize * (decoder_size - 1), num_classes) eg: [32 * 11, 26]
     zeros_forward = torch.zeros_like(gold_forward, dtype=gold_forward.dtype)
     ones_forward = torch.ones_like(gold_forward, dtype=gold_forward.dtype)
     gold_forward_weight = torch.where(gold_forward == 0, zeros_forward, ones_forward)
@@ -75,7 +76,7 @@ def cal_performance_focal_loss(pred_forward, pred_backward, gold_forward, gold_b
     loss_forward = torch.sum(loss_f)
     loss_backward = torch.sum(loss_b)
     loss = loss_forward + loss_backward
-    pred_forward = pred_forward.max(1)[1]
+    pred_forward = pred_forward.max(1)[1] # (batchsize * (decoder_size - 1))
     gold_forward = gold_forward.contiguous().view(-1)
     pred_backward = pred_backward.max(1)[1]
     gold_backward = gold_backward.contiguous().view(-1)
@@ -230,10 +231,10 @@ def train_cycle(model, worker_io_train, feature_index_list_train, opt, optimizer
             train_current_spectra[train_bucket_id], train_current_spectra[train_bucket_id] + deepnovo_config.batch_size
         )
         (
-            spectrum_holder,
-            intensity_inputs_forward,
+            spectrum_holder, # (batchsize, neighbor_size, 150000)
+            intensity_inputs_forward, # (12, batchsize, 26, 40, 10)
             intensity_inputs_backward,
-            decoder_inputs_forward,
+            decoder_inputs_forward, # (12, batchsize)
             decoder_inputs_backward,
             target_weights,
         ) = get_batch_2(index_list, train_set, train_bucket_id)
@@ -243,6 +244,7 @@ def train_cycle(model, worker_io_train, feature_index_list_train, opt, optimizer
         model.train()
         optimizer.zero_grad()
         spectrum_holder = torch.from_numpy(spectrum_holder).cuda()
+        # decoder_inputs_forward shape = (_buckets[train_bucket_id], batch_size)
         decoder_inputs_forward = torch.Tensor(decoder_inputs_forward).to(torch.int64).cuda()
         decoder_inputs_backward = torch.Tensor(decoder_inputs_backward).to(torch.int64).cuda()
         output_logits_forward, output_logits_backward = model(
@@ -255,7 +257,7 @@ def train_cycle(model, worker_io_train, feature_index_list_train, opt, optimizer
             True,
         )
 
-        gold_forward = decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1)
+        gold_forward = decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
         gold_backward = decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
         loss, n_correct_forward, n_correct_backward, n_word = cal_performance_focal_loss(
             output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0
@@ -496,7 +498,7 @@ def main():
     )
     parser.add_argument("--shared", action="store_true", default=False, help="Set to True to use shared weights.")
     parser.add_argument("--use_lstm", action="store_true", default=False, help="Set to True to use lstm-model.")
-    parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
+    parser.add_argument("--cuda", action="store_true", default=True, help="Set to True to use gpu.")
     parser.add_argument(
         "--lstm_kmer",
         action="store_true",

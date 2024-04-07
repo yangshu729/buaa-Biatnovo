@@ -51,7 +51,7 @@ class TrainingModel(nn.Module):
     def forward(
         self,
         opt,
-        spectrum_holder,
+        spectrum_holder, # shape=(batchsize, 5, 150000)
         intensity_inputs_forward,
         intensity_inputs_backward,
         decoder_inputs_forward,
