@@ -5,7 +5,7 @@ This script handles the training process.
 import argparse
 import os
 import torch
-import Model.TrainingModel_indepedent as TM
+import Model.TrainingModel as TM
 from DataProcessing import deepnovo_worker_io
 from DataProcessing import deepnovo_worker_denovo
 
@@ -32,7 +32,7 @@ def predict(opt, model):
     worker_io.predict()
     worker_denovo = deepnovo_worker_denovo.WorkerDenovo()
     # worker_denovo = deepnovo_worker_denovo_forward_backward.WorkerDenovo()
-    worker_denovo.search_denovo(model, worker_io)
+    worker_denovo.search_denovo_bi_SB(model, worker_io, opt)
 
 
 def main():
@@ -107,7 +107,7 @@ def main():
     parser.add_argument(
         "--multiprocessor",
         type=int,
-        default=1,
+        default=18,
         help="Use multi processors to read data during training.",
     )
 

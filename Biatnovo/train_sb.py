@@ -497,7 +497,7 @@ def main():
     )
     parser.add_argument("--shared", action="store_true", default=False, help="Set to True to use shared weights.")
     parser.add_argument("--use_lstm", action="store_true", default=False, help="Set to True to use lstm-model.")
-    parser.add_argument("--cuda", action="store_true", default=False, help="Set to True to use gpu.")
+    parser.add_argument("--cuda", action="store_true", default=True, help="Set to True to use gpu.")
     parser.add_argument(
         "--lstm_kmer",
         action="store_true",

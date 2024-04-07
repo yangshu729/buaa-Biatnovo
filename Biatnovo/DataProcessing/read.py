@@ -326,7 +326,7 @@ def read_single_spectrum_true_feeding(spectrum_batch, peptide_sequence, opt):
     return data, bucket_id, "OK"
 
 
-def _prepare_data(feature_index, worker_i):
+def _prepare_data(feature_index, worker_i, opt):
     """
 
     :param feature_index:
@@ -339,7 +339,7 @@ def _prepare_data(feature_index, worker_i):
     try:
         with open(worker_i.input_feature_file, "r") as feature_fr:
             with open(worker_i.input_spectrum_file, "r") as spectrum_fr:
-                return read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr)
+                return read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr, opt)
     except Exception:
         print("exception in _prepare_data: ")
         traceback.print_exc()
@@ -379,7 +379,7 @@ def read_spectra(worker_io, feature_index_list, opt):
                     for feature_index in feature_index_list
                 ]
     else:
-        mp_func = partial(_prepare_data, worker_i=worker_i)
+        mp_func = partial(_prepare_data, worker_i=worker_i, opt=opt)
         gc.collect()
         pool = Pool(processes=opt.multiprocessor)
         try:

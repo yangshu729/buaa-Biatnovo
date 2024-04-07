@@ -19,6 +19,7 @@ def get_batch_2(index_list, data_set, bucket_id):
     candidate_intensity_lists_backward = []
     decoder_inputs_forward = []
     decoder_inputs_backward = []
+    
     for index in index_list:
         # Get a random entry of encoder and decoder inputs from data,
         (
