@@ -1,14 +1,15 @@
+import csv
 import logging
 import os
 import pickle
 import re
 import numpy as np
 import torch
+from dataclasses import dataclass
 from torch.utils.data import Dataset
 from DataProcess.deepnovo_cython_modules import process_spectrum,get_candidate_intensity
 import deepnovo_config
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class DIAFeature:
@@ -252,7 +253,7 @@ class DeepNovoTrainDataset(Dataset):
         neighbor_center = best_scan_index
         neighbor_left_count = neighbor_center
         neighbor_right_count = neighbor_count - neighbor_left_count - 1
-        neighbor_size_half = self.neighbor_size // 2
+        neighbor_size_half = deepnovo_config.neighbor_size // 2
         neighbor_left_count = min(neighbor_left_count, neighbor_size_half)
         neighbor_right_count = min(neighbor_right_count, neighbor_size_half)
 
@@ -334,8 +335,8 @@ class DeepNovoTrainDataset(Dataset):
         spectrum_holder = np.vstack(spectrum_holder_list)
         spectrum_original_forward = np.vstack(spectrum_original_forward_list)
         spectrum_original_backward = np.vstack(spectrum_original_backward_list)
-        assert spectrum_holder.shape == (self.neighbor_size,
-                                         self.MZ_SIZE), "Error:shape"
+        assert spectrum_holder.shape == (deepnovo_config.neighbor_size,
+                                         deepnovo_config.MZ_SIZE), "Error:shape"
         # spectrum-CNN normalization: by feature
         spectrum_holder /= np.max(spectrum_holder)
 
@@ -344,7 +345,7 @@ class DeepNovoTrainDataset(Dataset):
             ms1_intensity_list_middle = [0.0] + ms1_intensity_list_middle
         for x in range(neighbor_size_half - neighbor_right_count):
             ms1_intensity_list_middle = ms1_intensity_list_middle + [0.0]
-        assert len(ms1_intensity_list_middle) == self.neighbor_size, "Error: ms1 profile"
+        assert len(ms1_intensity_list_middle) == deepnovo_config.neighbor_size, "Error: ms1 profile"
         ms1_profile = np.array(ms1_intensity_list_middle)
 
         return spectrum_holder, spectrum_original_forward, spectrum_original_backward, scan_list_middle, scan_list, ms1_profile
@@ -365,7 +366,7 @@ class DeepNovoTrainDataset(Dataset):
             mz_float = float(mz)
             intensity_float = float(intensity)
             # skip an ion if its mass > MZ_MAX
-            if mz_float > self.MZ_MAX:
+            if mz_float > deepnovo_config.MZ_MAX:
                 line = input_file_handle.readline()
                 continue
             mz_list.append(mz_float)

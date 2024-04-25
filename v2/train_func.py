@@ -13,6 +13,9 @@ from v2.test_accuracy import test_logit_batch_2
 
 logger = logging.getLogger(__name__)
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
+
 device = torch.device("cuda" if deepnovo_config.cuda else "cpu")
 
 def create_model(dropout_keep, training_mode, device):
@@ -39,7 +42,7 @@ def create_model(dropout_keep, training_mode, device):
     return model, start_epoch
 
 
-def validation(model, valid_loader, data_set_len, valid_log_file) -> float:
+def validation(model, valid_loader, data_set_len) -> float:
     avg_accuracy_AA = 0
     avg_accuracy_peptide = 0
     avg_loss = 0
@@ -182,7 +185,11 @@ def train():
             )
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
-            loss = cal_dia_focal_loss(output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0)
+            output_logits_forward_trans = output_logits_forward.view(-1, output_logits_forward.size(2))
+            output_logits_backward_trans = output_logits_backward.view(-1, output_logits_backward.size(2))
+            output_logits_forward = output_logits_forward.transpose(0, 1) 
+            output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
+            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, 0)
             loss.backward()
             optimizer.step_and_update_lr()
             # 更新最近的loss列表

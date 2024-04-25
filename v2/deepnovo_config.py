@@ -186,8 +186,9 @@ print("embedding_size ", embedding_size)
 
 
 dropout_keep = {
-  "keep_conv" : 0.25,
-  "keep_dense" : 0.5
+  "conv" : 0.25,
+  "dense" : 0.5,
+  "transformer": 0.2
 }
 
 print("dropout_keep ", dropout_keep)
@@ -199,7 +200,8 @@ print("batch_size ", batch_size)
 batch_size_predict = 1
 print("batch_size_predict: ", batch_size_predict)
 
-
+num_workers = 6
+print("num_workers ", num_workers)
 
 max_gradient_norm = 5.0
 print("max_gradient_norm ", max_gradient_norm)
@@ -246,15 +248,14 @@ knapsack_file = "knapsack.npy"
 # feature file column format
 # ==============================================================================
 
-col_feature_id = 0
-col_precursor_mz = 1
-col_precursor_charge = 2
-col_rt_mean = 3
-col_raw_sequence = 4
-col_scan_list = 5
-col_ms1_list = 6
-col_feature_area = 7
-col_num = 8
+col_feature_id = "spec_group_id"
+col_precursor_mz = "m/z"
+col_precursor_charge = "z"
+col_rt_mean = "rt_mean"
+col_raw_sequence = "seq"
+col_scan_list = "scans"
+col_ms1_list = "profile"
+col_feature_area = "feature area"
 # # predicted file column format
 # pcol_feature_id = 0
 # pcol_feature_area = 1
@@ -277,3 +278,4 @@ num_epoch = 30
 steps_per_validation = 100
 early_stop = 10
 
+print("aaaaaa")

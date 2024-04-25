@@ -1,7 +1,21 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 from v2 import deepnovo_config
-from Biatnovo.train import cal_folcal_loss
+
+
+def cal_folcal_loss(pred, gold, gamma=2):
+    sigmoid_p = torch.sigmoid(pred)
+    num_classes = pred.shape[-1]
+    target_tensor = F.one_hot(gold, num_classes=num_classes)
+    zeros = torch.zeros_like(sigmoid_p, dtype=sigmoid_p.dtype)
+    pos_p_sub = torch.where(target_tensor >= sigmoid_p, target_tensor - sigmoid_p, zeros)
+    neg_p_sub = torch.where(target_tensor > zeros, zeros, sigmoid_p)
+    per_entry_cross_ent = -(pos_p_sub**gamma) * torch.log(torch.clamp(sigmoid_p, 1e-8, 1.0)) - (
+        neg_p_sub**gamma
+    ) * torch.log(torch.clamp(1.0 - sigmoid_p, 1e-8, 1.0))
+    # (batchsize * (decoder_size - 1), 对每个样本的每个类别loss求和
+    return torch.sum(per_entry_cross_ent, dim=-1)
 
 def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx):
     # pred_forward.shape = (batchsize * (decoder_size - 1), num_classes) 
@@ -60,28 +74,31 @@ def test_logit_single_2(decoder_input_forward,
                         decoder_input_backward,
                         output_logit_forward,
                         output_logit_backward):
-  """TODO(nh2tran): docstring."""
+    """TODO(nh2tran): docstring."""
 
-  # length excluding FIRST_LABEL & LAST_LABEL
-  decoder_input_len = decoder_input_forward[1:].index(deepnovo_config.EOS_ID)
+    # length excluding FIRST_LABEL & LAST_LABEL
+  
+    decoder_input_len = decoder_input_forward[1:].index(deepnovo_config.EOS_ID)
 
-  # average forward-backward prediction logit
-  logit_forward = output_logit_forward[:decoder_input_len]
-  logit_backward = output_logit_backward[:decoder_input_len]
-  logit_backward = logit_backward[::-1]
-  output = []
-  for x, y in zip(logit_forward, logit_backward):
-    prob_forward = np.exp(x) / np.sum(np.exp(x))
-    prob_backward = np.exp(y) / np.sum(np.exp(y))
-    output.append(np.argmax(prob_forward * prob_backward))
+    # 去掉结束的符号
+    logit_forward = output_logit_forward[:decoder_input_len].cpu().detach().numpy()  # first word ... last word
+    logit_backward = output_logit_backward[:decoder_input_len].cpu().detach().numpy()
+    # logit_backward = output_logit_backward[:decoder_input_len]
+    logit_backward = logit_backward[::-1]
 
-  output.append(deepnovo_config.EOS_ID)
+    output = []
+    for x, y in zip(logit_forward, logit_backward):
+      prob_forward = np.exp(x) / np.sum(np.exp(x))
+      prob_backward = np.exp(y) / np.sum(np.exp(y))
+      output.append(np.argmax(prob_forward * prob_backward))
 
-  return test_AA_true_feeding_single(decoder_input_forward, output, direction=0)
+    output.append(deepnovo_config.EOS_ID)
+
+    return test_AA_true_feeding_single(decoder_input_forward, output, direction=0)
 
 def test_logit_batch_2(decoder_inputs_forward,
                        decoder_inputs_backward,
-                       output_logits_forward,
+                       output_logits_forward, # # (seq_len,batchsize, 26))
                        output_logits_backward):
     """TODO(nh2tran): docstring.
    
@@ -91,12 +108,14 @@ def test_logit_batch_2(decoder_inputs_forward,
     num_exact_match = 0.0
     num_len_match = 0.0
     batch_size = len(decoder_inputs_forward[0])
+    output_logits_forward = output_logits_forward.view(-1, batch_size, deepnovo_config.vocab_size)
+    output_logit_backward = output_logits_backward.view(-1, batch_size, deepnovo_config.vocab_size)
     # Process each sample in the batch
     for batch in range(batch_size):
-        decoder_input_forward = decoder_inputs_forward[batch]
-        decoder_input_backward = decoder_inputs_backward[batch]
-        output_logit_forward = output_logits_forward[batch]
-        output_logit_backward = output_logits_backward[batch]
+        decoder_input_forward = [x[batch] for x in decoder_inputs_forward]
+        decoder_input_backward = [x[batch] for x in decoder_inputs_backward]
+        output_logit_forward = output_logits_forward[:, batch, :]  # (seq_len, 26)
+        output_logit_backward = output_logits_backward[:, batch, :]
 
         accuracy_AA, len_AA, exact_match, len_match = test_logit_single_2(
             decoder_input_forward,

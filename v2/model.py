@@ -14,11 +14,11 @@ class ScaledDotProductAttention(nn.Module):
         self.dropout = nn.Dropout(attn_dropout)
 
     def forward(self, q, k, v, mode=False, mask=None):
-        attn = nn.torch.matmul(q / self.temperature, k.transpose(2, 3))
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
         if mode:
             attn = attn.masked_fill(mask == False, -1e9)
         attn = self.dropout(F.softmax(attn, dim=-1))
-        output = nn.torch.matmul(attn, v)
+        output = torch.matmul(attn, v)
         return output, attn
 
 class MultiHeadAttention(nn.Module):
@@ -154,7 +154,7 @@ class PositionalEncoding(nn.Module):
         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
 
-        return nn.torch.FloatTensor(sinusoid_table).unsqueeze(0)
+        return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
     def forward(self, x):
         return x + self.pos_table[:, : x.size(1)].clone().detach()
@@ -273,7 +273,7 @@ class DeepNovoAttion(nn.Module):
                 intensity_inputs_backward,
                 decoder_inputs_forward,  # shape=(seq_len - 1, batch_size)
                 decoder_inputs_backward):
-            spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder, self.dropout_keep) # (batchsize, 16, 256)
+            spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder) # (batchsize, 16, 256)
             decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
             decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
             # (batchsize, seq_len, embedding_size)
@@ -301,7 +301,7 @@ class DeepNovoAttion(nn.Module):
             ):
                 for i, AA_2 in enumerate(decoder_inputs_emb):
                     input_intensity = torch.tensor(intensity_inputs[i]).cuda()
-                    output = self.ion_cnn(input_intensity, self.dropout_keep)
+                    output = self.ion_cnn(input_intensity)
                     output = output.unsqueeze_(0)  # (1, batchsize, 512)
                     outputs.append(output)
             output_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
@@ -313,5 +313,6 @@ class DeepNovoAttion(nn.Module):
             # (batchsize, seq len, 26)
             logit_forward = self.trg_word_prj(output_forward)
             logit_backward = self.trg_word_prj(output_backward)
-            # (batchsize x seq len, 26)
-            return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
+            # (batchsize , seq len, 26)
+            #return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
+            return logit_forward, logit_backward

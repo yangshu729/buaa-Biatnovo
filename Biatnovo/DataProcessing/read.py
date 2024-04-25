@@ -5,7 +5,7 @@ import gc
 import sys
 import traceback
 import deepnovo_config
-from DataProcessing.deepnovo_worker_io import WorkerI
+from Biatnovo.DataProcessing.deepnovo_worker_io import WorkerI
 from functools import partial
 from multiprocessing import Pool
 from six.moves import xrange  # pylint: disable=redefined-builtin

@@ -260,3 +260,4 @@ pcol_scan_list_middle = 8
 pcol_scan_list_original = 9
 pcol_score_max = 10
 pcol_score_max_unlabeled = 9
+print("this is old config")
