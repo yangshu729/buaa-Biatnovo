@@ -194,7 +194,7 @@ dropout_keep = {
 print("dropout_keep ", dropout_keep)
 
 
-batch_size = 32
+batch_size = 128
 print("batch_size ", batch_size)
 
 batch_size_predict = 1

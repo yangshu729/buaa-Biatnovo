@@ -1,3 +1,4 @@
+import datetime
 import os
 import time
 import torch
@@ -25,7 +26,6 @@ def create_model(dropout_keep, training_mode, device):
         # load check_point
         print("loading checkpoint()")
         checkpoint = torch.load(os.path.join(deepnovo_config.train_dir, "translate.ckpt"))
-        model_opt = checkpoint["settings"]
         model = DeepNovoAttion(dropout_keep)
         model.load_state_dict(checkpoint["model"])
         start_epoch = checkpoint["epoch"]
@@ -80,9 +80,17 @@ def validation(model, valid_loader, data_set_len) -> float:
                 batch_decoder_inputs_forward[:- 1], # (seq_len - 1, batchsize)
                 batch_decoder_inputs_backward[:- 1],
             )
+
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
-            loss = cal_dia_focal_loss(output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0)
+            output_logits_forward_trans = output_logits_forward.view(-1, output_logits_forward.size(2))
+            output_logits_backward_trans = output_logits_backward.view(-1, output_logits_backward.size(2))
+            output_logits_forward = output_logits_forward.transpose(0, 1) 
+            output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
+            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, 0)
+            # gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
+            # gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
+            # loss = cal_dia_focal_loss(output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0)
              
             (batch_accuracy_AA,
              batch_len_AA,
@@ -123,17 +131,21 @@ def train():
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
     
+    # Get current date and time
+    current_time = datetime.datetime.now()
 
-    ### log_file to record perplexity/accuracy during training
-    log_file = deepnovo_config.train_dir + "/log_file_caption_2dir.tab"
-    print("Open log_file: ", log_file)
-    log_file_handle = open(log_file, 'w')
-    print("epoch \t step \t"
-            "loss \t last_accuracy_AA \t last_accuracy_peptide \t"
-            "valid_loss \t valid_accuracy_AA \t valid_accuracy_peptide \n",
-            file=log_file_handle,
-            end="")
-   
+    # Format the datetime string
+    formatted_time = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Create the log file name with the current date and time
+    log_file = f"{deepnovo_config.train_dir}/log_file_caption_2dir_{formatted_time}.tab"
+
+    logger.info(f"Open log_file: {log_file}")
+
+    with open(log_file, 'a') as log_file_handle:
+        print("epoch\tstep\tloss\tlast_accuracy_AA\tlast_accuracy_peptide\tvalid_loss\tvalid_accuracy_AA\tvalid_accuracy_peptide\n",
+            file=log_file_handle, end="")
+
     model, start_epoch = create_model(deepnovo_config.dropout_keep, True, device)
     optimizer = ScheduledOptim(
         optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
@@ -175,7 +187,7 @@ def train():
             batch_decoder_inputs_forward = batch_decoder_inputs_forward.permute(1, 0)
             batch_decoder_inputs_backward = batch_decoder_inputs_backward.permute(1, 0)
 
-            # # (batchsize x seq len, 26)
+            ## (batchsize , seq len, 26)
             output_logits_forward, output_logits_backward = model(
                 spectrum_holder,  # (batchsize, neighbor_size, 150000)
                 batch_intensity_inputs_forward, # (seq_len, batchsize, 26, 40, 10)
@@ -216,24 +228,27 @@ def train():
                 accuracy_AA = batch_accuracy_AA / batch_len_AA
                 accuracy_peptide = num_exact_match / deepnovo_config.batch_size
 
-                print("%d \t %d \t %.4f \t %.4f \t %.4f\t"
-                    % (epoch,
+                with open(log_file, 'a') as log_file_handle:
+                    # Print the formatted data directly to the file
+                    print("%d\t%d\t%.4f\t%.4f\t%.4f\t" %
+                        (epoch,
                         i + 1,
                         avg_loss,
                         accuracy_AA,
                         accuracy_peptide),
-                    file=log_file_handle,
-                    end="")
+                        file=log_file_handle,
+                        end="")
                 # validation
                 model.eval()
                 validaion_begin_time = time.time()
                 validation_loss, accuracy_AA, accuracy_peptide  = validation(model, valid_data_loader, len(valid_set))
                 validation_duration = time.time() - validaion_begin_time
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
-                            f"train loss: {avg_loss}\t"
-                            f"validation loss: {validation_loss}\tstep time: {step_time}")
+                            f"train loss: {avg_loss}\tstep time: {step_time} "
+                            f"validation loss: {validation_loss}")
                 logger.info(f"validation cost: {validation_duration} seconds")
-                print("%.4f \t %.4f \t %.4f\n" % (validation_loss, accuracy_AA, accuracy_peptide),
+                with open(log_file, 'a') as log_file_handle:
+                    print("%.4f \t %.4f \t %.4f\n" % (validation_loss, accuracy_AA, accuracy_peptide),
                     file=log_file_handle,
                     end="")
                 model.train()
@@ -252,5 +267,4 @@ def train():
                         logger.info(f"early stop at epoch {epoch} step {i}")
                         break
 
-             
     logger.info(f"best model at epoch {best_epoch} step {best_step}")

@@ -1,9 +1,10 @@
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
 import deepnovo_config
 import torch.nn.functional as F
-
+logger = logging.getLogger(__name__)
 
 class ScaledDotProductAttention(nn.Module):
     """Scaled Dot-Product Attention"""

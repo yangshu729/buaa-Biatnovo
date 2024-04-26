@@ -146,7 +146,7 @@ class DeepNovoTrainDataset(Dataset):
                     continue
                 if mass > deepnovo_config.MZ_MAX:
                     skipped_by_mass += 1
-                    logger.debug(f"{line[seq_index]} skipped by mass")
+                    logger.debug(f"{line[seq_index]} skipped by mass, mass is {mass}")
                     continue
                 if len(peptide) >= deepnovo_config.MAX_LEN:
                     skipped_by_length += 1
@@ -166,6 +166,8 @@ class DeepNovoTrainDataset(Dataset):
                 new_feature = DIAFeature(feature_id, feature_area, precursor_mz, 
                                          precursor_charge, mass, rt_mean, peptide, scan_list, ms1_list)
                 self.feature_list.append(new_feature)
+        logger.info(f"skipped_by_mass: {skipped_by_mass}, skipped_by_ptm: {skipped_by_ptm}, skipped_by_length: {skipped_by_length}")
+        logger.info(f"total features: {len(self.feature_list)}")
 
     def __getitem__(self, idx):
         if self.input_spectrum_handle is None:
