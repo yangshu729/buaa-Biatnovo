@@ -6,6 +6,8 @@ import deepnovo_config
 import torch.nn.functional as F
 logger = logging.getLogger(__name__)
 
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+
 class ScaledDotProductAttention(nn.Module):
     """Scaled Dot-Product Attention"""
 
@@ -317,3 +319,37 @@ class DeepNovoAttion(nn.Module):
             # (batchsize , seq len, 26)
             #return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
             return logit_forward, logit_backward
+    
+class InferenceModelWrapper(object):
+    def __init__(self, model : DeepNovoAttion):
+        self.model = model
+        self.device = device
+        # make sure model in eval mode
+        self.model.eval()
+
+    def init_spectrum_cnn(self, spectrum_holder: torch.Tensor):
+        with torch.no_grad():
+            spectrum_holder = spectrum_holder.to(self.device)
+            return self.model.spectrum_cnn(spectrum_holder)
+
+    def inference(self, spectrum_cnn_outputs, candidate_intensity, decoder_inputs):
+        with torch.no_grad():
+            # spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder, self.dropout_keep)
+            output_ion_cnn = self.model.ion_cnn(candidate_intensity) # candidate_intensity shape=(batchsize, 26, 40, 10)
+            # (batchsize, embedding_size)
+            src_mask = self.model.get_src_mask(spectrum_cnn_outputs) # spectrum_cnn_outputs shape=(batchsize, 16, 256), src_mask shape=(batchsize, 16)
+            decoder_inputs_trans = decoder_inputs.permute(1, 0) # decoder_inputs shape=(seq_len, batchsize), decode_inputs_trans shape=(batchsize, seq_len)
+            # (1, 当前步序列)
+            trg_mask = self.model.get_subsequent_mask(decoder_inputs_trans) 
+            output_transformer_forward = self.model.transformer( # (batchsize, seq len, ebmedding_size)
+                decoder_inputs_trans, trg_mask, spectrum_cnn_outputs, src_mask
+            )
+            output_transformer_forward = output_transformer_forward[:, -1, :]
+            # (batchsize, embedding_size)
+            output_forward = torch.cat([output_transformer_forward, output_ion_cnn], dim=1)
+            # output_forward = output_transformer_forward
+            logit_forward = self.model.trg_word_prj(output_forward)
+            # (batchsize, embedding_size)
+            return logit_forward
+
+    

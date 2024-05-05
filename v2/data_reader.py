@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 import re
+from typing import List
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -20,8 +21,23 @@ class DIAFeature:
     precursor_mass : float
     rt_mean :  float
     peptide : list
+    scan_list_middle: list
     scan_list : list
     ms1_list : list
+
+@dataclass
+class DenovoData:
+    spectrum_holder : np.ndarray
+    spectrum_original_forward : np.ndarray
+    spectrum_original_backward : np.ndarray
+    dia_feature : DIAFeature
+
+@dataclass
+class BatchDenovoData:
+    spectrum_holder : torch.Tensor
+    spectrum_original_forward : List[np.ndarray]
+    spectrum_original_backward : List[np.ndarray]
+    dia_features : List[DIAFeature]
 
 @dataclass
 class TrainData:
@@ -163,7 +179,7 @@ class DeepNovoTrainDataset(Dataset):
                 if (len(scan_list) != len(ms1_list)):
                     ms1_list = ["1:1"] * len(scan_list)  # mock ms1_list数据
                 assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
-                new_feature = DIAFeature(feature_id, feature_area, precursor_mz, 
+                new_feature = DIAFeature(feature_id, feature_area, precursor_mz,
                                          precursor_charge, mass, rt_mean, peptide, scan_list, ms1_list)
                 self.feature_list.append(new_feature)
         logger.info(f"skipped_by_mass: {skipped_by_mass}, skipped_by_ptm: {skipped_by_ptm}, skipped_by_length: {skipped_by_length}")
@@ -174,7 +190,7 @@ class DeepNovoTrainDataset(Dataset):
             self.input_spectrum_handle = open(self.spectrum_filename, 'r')
         feature = self.feature_list[idx]
         return self._get_spectrum(feature, self.input_spectrum_handle)
-    
+
     def _get_spectrum(self, feature : DIAFeature, input_spectrum_file_handle):
         """TODO(nh2tran): docstring."""
 
@@ -212,7 +228,7 @@ class DeepNovoTrainDataset(Dataset):
             prefix_mass += deepnovo_config.mass_ID[id]
             candidate_intensity = get_candidate_intensity(spectrum_original_forward, feature.precursor_mass, prefix_mass, 0)
             candidate_intensity_forward.append(candidate_intensity)
-        
+
         suffix_mass = 0.0
         candidate_intensity_backward=[]
         for i, id in enumerate(peptide_ids_backward[:-1]):
@@ -223,8 +239,8 @@ class DeepNovoTrainDataset(Dataset):
                          peptide_ids_forward,
                          peptide_ids_backward,
                          candidate_intensity_forward,
-                         candidate_intensity_backward) 
-        
+                         candidate_intensity_backward)
+
 
     def __len__(self):
         return len(self.feature_list)
@@ -408,7 +424,7 @@ def collate_func(train_data_list: list[TrainData]):
 
     batch_forward_intensity = torch.from_numpy(np.stack(batch_forward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
     batch_peptide_ids_forward = torch.from_numpy(np.stack(batch_peptide_ids_forward))  # [batch_size, batch_max_seq_len]
-    
+
     batch_backward_intensity = []
     batch_peptide_ids_backward = []
     for data in train_data_list:
@@ -426,10 +442,48 @@ def collate_func(train_data_list: list[TrainData]):
     batch_backward_intensity = torch.from_numpy(
         np.stack(batch_backward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
     batch_peptide_ids_backward = torch.from_numpy(np.stack(batch_peptide_ids_backward))  # [batch_size, batch_max_seq_len]
-    
+
     return (spectrum_holder,
             batch_forward_intensity,
             batch_backward_intensity,
             batch_peptide_ids_forward,
             batch_peptide_ids_backward)
 
+class DeepNovoDenovoDataset(DeepNovoTrainDataset):
+    # override the _get_spectrum method
+    def _get_spectrum(self, feature: DIAFeature, input_spectrum_file_handle) -> DenovoData:
+        """TODO(nh2tran): docstring."""
+
+        # ~ print("".join(["="] * 80)) # section-separating line
+        # ~ print("WorkerIO: get_spectrum()")
+
+        # parse and process spectrum
+        (
+            spectrum_holder,
+            spectrum_original_forward,
+            spectrum_original_backward,
+            scan_list_middle,
+            scan_list_original,
+            ms1_profile,
+        ) = self._parse_spectrum(
+            feature.precursor_mz,
+            feature.precursor_mass,
+            feature.rt_mean,
+            feature.scan_list,
+            feature.ms1_list,
+            input_spectrum_file_handle,
+        )
+        feature.scan_list_middle = scan_list_middle
+        feature.scan_list = scan_list_original
+        return DenovoData(spectrum_holder,
+                          spectrum_original_forward,
+                          spectrum_original_backward,
+                          feature)
+
+def denovo_collate_func(data_list: List[DenovoData]) -> BatchDenovoData:
+    spectrum_holder = np.array([x.spectrum_holder for x in data_list])
+    spectrum_holder = torch.from_numpy(spectrum_holder)
+    spectrum_original_forward = [x.spectrum_original_forward for x in data_list]
+    spectrum_original_backward = [x.spectrum_original_backward for x in data_list]
+    dia_features = [x.dia_feature for x in data_list]
+    return BatchDenovoData(spectrum_holder, spectrum_original_forward, spectrum_original_backward, dia_features)

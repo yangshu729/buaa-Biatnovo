@@ -14,12 +14,9 @@ from v2.test_accuracy import test_logit_batch_2
 
 logger = logging.getLogger(__name__)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-device = torch.device("cuda" if deepnovo_config.cuda else "cpu")
-
-def create_model(dropout_keep, training_mode, device):
+def create_model(dropout_keep, training_mode):
     """TODO(nh2tran): docstring."""
     print("".join(["="] * 80))  # section-separating line
     if os.path.exists(os.path.join(deepnovo_config.train_dir, "translate.ckpt")):
@@ -266,5 +263,8 @@ def train():
                     if no_update_count >= deepnovo_config.early_stop:
                         logger.info(f"early stop at epoch {epoch} step {i}")
                         break
+        
+        if no_update_count >= deepnovo_config.early_stop:
+            break
 
     logger.info(f"best model at epoch {best_epoch} step {best_step}")

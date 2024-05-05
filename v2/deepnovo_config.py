@@ -197,7 +197,7 @@ print("dropout_keep ", dropout_keep)
 batch_size = 128
 print("batch_size ", batch_size)
 
-batch_size_predict = 1
+batch_size_predict = 32
 print("batch_size_predict: ", batch_size_predict)
 
 num_workers = 6
@@ -234,15 +234,16 @@ topk_output = 1
 input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
-input_feature_file_valid = "/root//biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
+input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
+denovo_input_feature_file = ""
+denovo_input_spectrum_file = ""
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
 
 # pre-built knapsack matrix
 knapsack_file = "knapsack.npy"
 
-# denovo_output_file = denovo_input_feature_file + str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
-
+denovo_output_file = denovo_input_feature_file + str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
 
 # ==============================================================================
 # feature file column format
