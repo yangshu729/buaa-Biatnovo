@@ -1118,7 +1118,7 @@ class WorkerDenovo(object):
                 else:
                     block_decoder_inputs = torch.cat([block_AAid_1, block_AAid_2], dim=0)
                 with torch.no_grad():
-                    log_prob = model.Inference(
+                    log_prob = model.Inference(  # (batchsize, 26)
                         block_spectrum_cnn_outputs,
                         block_candidate_intensity,
                         block_decoder_inputs,

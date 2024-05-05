@@ -106,12 +106,12 @@ class TrainingModel(nn.Module):
 
     def Inference(self, spectrum_cnn_outputs, candidate_intensity, decoder_inputs, direction_id):
         if direction_id == 0:
-            output_ion_cnn = self.ion_cnn(candidate_intensity, self.dropout_keep)
+            output_ion_cnn = self.ion_cnn(candidate_intensity, self.dropout_keep) # candidate_intensity shape=(batchsize, 26, 40, 10)
             # (1, 512)
-            src_mask = self.get_src_mask(spectrum_cnn_outputs)
-            decoder_inputs_trans = decoder_inputs.permute(1, 0)
+            src_mask = self.get_src_mask(spectrum_cnn_outputs) # spectrum_cnn_outputs shape=(batchsize, 16, 256), src_mask shape=(batchsize, 16)
+            decoder_inputs_trans = decoder_inputs.permute(1, 0) # decoder_inputs shape=(seq_len, batchsize), decode_inputs_trans shape=(batchsize, seq_len)
             # (1, 当前步序列)
-            trg_mask = self.get_subsequent_mask(decoder_inputs_trans)
+            trg_mask = self.get_subsequent_mask(decoder_inputs_trans) 
             output_transformer_forward = self.transformer(
                 decoder_inputs_trans, trg_mask, spectrum_cnn_outputs, src_mask
             )

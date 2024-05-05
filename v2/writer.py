@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from data_reader import DDAFeature, DIAFeature
+from data_reader import DIAFeature
 import deepnovo_config
 import logging
 
@@ -15,7 +15,8 @@ class BeamSearchedSequence:
 
 class DenovoWriter(object):
     def __init__(self, denovo_output_file):
-        self.output_handle = open(denovo_output_file, 'w')
+        self.log_file = denovo_output_file
+        
         header_list = ["feature_id",
                        "feature_area",
                        "predicted_sequence",
@@ -28,7 +29,8 @@ class DenovoWriter(object):
                        "scan_list_original",
                        "predicted_score_max"]
         header_row = "\t".join(header_list)
-        print(header_row, file=self.output_handle, end='\n')
+        with open(self.log_file, 'a') as output_handle:
+            print(header_row, file=output_handle, end='\n')
 
     def close(self):
         self.output_handle.close()
@@ -41,11 +43,11 @@ class DenovoWriter(object):
         :return:
         """
         feature_id = dia_feature.feature_id
-        feature_area = dia_feature.feature_area
+        feature_area = str(dia_feature.feature_area)
         precursor_mz = str(dia_feature.precursor_mz)
         precursor_charge = str(dia_feature.precursor_charge)
-        scan_list_middle = dia_feature.scan_list_middle
-        scan_list_original = dia_feature.scan_list
+        scan_list_middle = ','.join(dia_feature.scan_list_middle)
+        scan_list_original = ','.join(dia_feature.scan_list)
         if searched_sequence.sequence:
             predicted_sequence = ','.join([deepnovo_config.vocab_reverse[aa_id] for
                                            aa_id in searched_sequence.sequence])
@@ -70,7 +72,8 @@ class DenovoWriter(object):
                                    scan_list_middle,
                                    scan_list_original,
                                    predicted_score_max])
-        print(predicted_row, file=self.output_handle, end="\n")
+        with open(self.log_file, 'a') as output_handle:
+            print(predicted_row, file=output_handle, end="\n")
 
     def __del__(self):
         self.close()

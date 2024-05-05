@@ -14,7 +14,7 @@ from v2.test_accuracy import test_logit_batch_2
 
 logger = logging.getLogger(__name__)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def create_model(dropout_keep, training_mode):
     """TODO(nh2tran): docstring."""

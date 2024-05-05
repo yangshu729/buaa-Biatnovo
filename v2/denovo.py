@@ -11,11 +11,9 @@ import torch
 from v2 import deepnovo_config
 from v2.data_reader import BatchDenovoData, DIAFeature
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
-from v2.model import DeepNovoAttion, InferenceModelWrapper
+from v2.model import InferenceModelWrapper, device
 from v2.writer import BeamSearchedSequence, DenovoWriter
 logger = logging.getLogger(__name__)
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Direction(Enum):
     forward = 1
@@ -140,8 +138,8 @@ class DeepNovoAttionDenovo():
                 sequence_mass += deepnovo_config.mass_ID[deepnovo_config.GO_ID] + deepnovo_config.mass_ID[
                     deepnovo_config.EOS_ID]
                 if abs(sequence_mass - precursor_mass) <= deepnovo_config.PRECURSOR_MASS_PRECISION_TOLERANCE:
-                    logger.debug(f"sequence {sequence} of feature "
-                                 f"{batch_denovo_data.dia_features[feature_index].feature_id} refined")
+                    #logger.debug(f"sequence {sequence} of feature "
+                    #             f"{batch_denovo_data.dia_features[feature_index].feature_id} refined")
                     refine_batch[feature_index].append(beam_search_sequence)
         predicted_batch = []
         for feature_index in range(feature_batch_size):
@@ -157,7 +155,7 @@ class DeepNovoAttionDenovo():
                 best_beam_search_sequence = max(candidate_list, key=lambda x: x.score)
 
             denovo_result = DenovoResult(
-                dda_feature=batch_denovo_data.dia_features[feature_index],
+                dia_feature=batch_denovo_data.dia_features[feature_index],
                 best_beam_search_sequence=best_beam_search_sequence
             )
             predicted_batch.append(denovo_result)
@@ -181,7 +179,7 @@ class DeepNovoAttionDenovo():
             raise ValueError('direction neither forward nor backward')
 
         # step 1: extract original spectrum
-        block_spectrum_cnn_outputs = model_wrapper.init_spectrum_cnn(batch_denovo_data.spectrum_holder)
+        spectrum_cnn_outputs = model_wrapper.init_spectrum_cnn(batch_denovo_data.spectrum_holder) # (batchszie, 16, 256)
         
         # initialize activate search list
         active_search_list = []
@@ -212,6 +210,7 @@ class DeepNovoAttionDenovo():
             block_aa_seq_mass = []
             block_score_list = []
             block_score_sum = []
+            block_spectrum_cnn_outputs = []
             block_knapsack_candidates = []
             # store the number of paths of each search entry in the big blocks
             #     to retrieve the info of each search entry later in STEP 4.
@@ -274,6 +273,7 @@ class DeepNovoAttionDenovo():
                     block_score_list.append(score_list)
                     block_score_sum.append(score_sum)
                     block_knapsack_candidates.append(knapsack_candidates)
+                    block_spectrum_cnn_outputs.append(spectrum_cnn_outputs[entry_index, :, :].unsqueeze_(0))
                     # record the size of each search entry in the blocks
                     search_entry_size[entry_index] += 1
 
@@ -283,12 +283,12 @@ class DeepNovoAttionDenovo():
                 break
             block_intensity_input = torch.from_numpy(np.array(block_intensity_input)).to(device)
             block_decoder_inputs = torch.from_numpy(np.array(block_aa_id_list).transpose(1, 0)).to(device)
-            
-            current_log_prob = model_wrapper.inference(  # (batchsize, 26)
+            block_spectrum_cnn_outputs = torch.cat(block_spectrum_cnn_outputs, dim=0)
+
+            current_log_prob = model_wrapper.inference(  # (batchsize * beamsize, 26)
                 block_spectrum_cnn_outputs,
                 block_intensity_input,
                 block_decoder_inputs,  # (seq_len, batchsize)
-                direction,
             )
             # transfer log_prob back to cpu
             current_log_prob = current_log_prob.cpu().numpy()

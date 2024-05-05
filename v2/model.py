@@ -6,7 +6,7 @@ import deepnovo_config
 import torch.nn.functional as F
 logger = logging.getLogger(__name__)
 
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class ScaledDotProductAttention(nn.Module):
     """Scaled Dot-Product Attention"""

@@ -21,9 +21,9 @@ class DIAFeature:
     precursor_mass : float
     rt_mean :  float
     peptide : list
-    scan_list_middle: list
-    scan_list : list
-    ms1_list : list
+    scan_list_middle: list = None
+    scan_list : list = None
+    ms1_list : list = None
 
 @dataclass
 class DenovoData:
@@ -180,7 +180,7 @@ class DeepNovoTrainDataset(Dataset):
                     ms1_list = ["1:1"] * len(scan_list)  # mock ms1_list数据
                 assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
                 new_feature = DIAFeature(feature_id, feature_area, precursor_mz,
-                                         precursor_charge, mass, rt_mean, peptide, scan_list, ms1_list)
+                                         precursor_charge, mass, rt_mean, peptide, scan_list = scan_list, ms1_list = ms1_list)
                 self.feature_list.append(new_feature)
         logger.info(f"skipped_by_mass: {skipped_by_mass}, skipped_by_ptm: {skipped_by_ptm}, skipped_by_length: {skipped_by_length}")
         logger.info(f"total features: {len(self.feature_list)}")

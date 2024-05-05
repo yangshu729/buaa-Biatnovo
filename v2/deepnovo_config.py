@@ -20,7 +20,6 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", type=str, default="train")
-parser.add_argument("--beam_size", type=int, default="5")
 parser.add_argument("--train", dest="train", action="store_true")
 parser.add_argument("--search_denovo", dest="search_denovo", action="store_true")
 parser.add_argument("--test", dest="test", action="store_true")
@@ -167,8 +166,9 @@ print("MAX_LEN ", MAX_LEN)
 _buckets = [12, 22, 32]
 print("_buckets ", _buckets)
 
-beam_size = 10
-# beam_size = 5
+
+beam_size = 5
+print("beam_size ", beam_size)
 # ==============================================================================
 # HYPER-PARAMETERS of the NEURAL NETWORKS
 # ==============================================================================
@@ -235,8 +235,8 @@ input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatN
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-denovo_input_feature_file = ""
-denovo_input_spectrum_file = ""
+denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
+denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
 

@@ -5,7 +5,7 @@ import time
 import torch
 import deepnovo_config
 from v2.data_reader import DeepNovoDenovoDataset, denovo_collate_func
-from v2.denovo import DeepNovoAttionDenovo, biatDenovo
+from v2.denovo import DeepNovoAttionDenovo
 from v2.model import InferenceModelWrapper
 from v2.train_func import create_model, train
 from v2.writer import DenovoWriter
@@ -31,6 +31,7 @@ def main():
         model, start_epoch = create_model(deepnovo_config.dropout_keep, training_mode=False)
         model_wrapper = InferenceModelWrapper(model)
         writer = DenovoWriter(deepnovo_config.denovo_output_file)
+        logger.info("denovo_output_file: %s", deepnovo_config.denovo_output_file)
         with torch.no_grad():
             denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)
             # cProfile.runctx("denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)", globals(), locals())
@@ -45,6 +46,7 @@ if __name__ == '__main__':
 
     # Create the log file name with the current date and time
     log_file_name = f"{deepnovo_config.train_dir}/biatnovo_{formatted_time}.log"
+    print(f"log_file_name:{log_file_name}")
     d = {
         'version': 1,
         'disable_existing_loggers': False,  # this fixes the problem

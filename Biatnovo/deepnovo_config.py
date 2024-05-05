@@ -177,7 +177,7 @@ print("keep_dense ", keep_dense)
 batch_size = 32
 print("batch_size ", batch_size)
 
-batch_size_predict = 1
+batch_size_predict = 16
 print("batch_size_predict: ", batch_size_predict)
 
 epoch_stop = 49 + 10  # 10 # 50 # 31800*32/(counter_train = 20568)
