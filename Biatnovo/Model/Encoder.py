@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import deepnovo_config
-import deepnovo_config_dda
+from Biatnovo import deepnovo_config_dda
 
 
 class Spectrum_cnn(nn.Module):
@@ -73,7 +73,7 @@ class Ion_cnn(nn.Module):
         self.fc = nn.Linear(7680, 512)
 
     def forward(self, input_intensity, dropout_keep):
-        # (batchsize, 26, 40, 10)
+        # (batchsize, 26, 40, 10) 将input_intensity张量重塑成一个五维张量
         input_intensity = input_intensity.view(
             -1,
             deepnovo_config.vocab_size,

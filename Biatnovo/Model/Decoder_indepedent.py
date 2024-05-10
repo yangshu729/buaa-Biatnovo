@@ -13,11 +13,11 @@ class ScaledDotProductAttention(nn.Module):
         self.dropout = nn.Dropout(attn_dropout)
 
     def forward(self, q, k, v, mode=False, mask=None):
-        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3)) # (batchsize, n_head, len_q, len_q)
         if mode:
             attn = attn.masked_fill(mask == False, -1e9)
         attn = self.dropout(F.softmax(attn, dim=-1))
-        output = torch.matmul(attn, v)
+        output = torch.matmul(attn, v)  # (batchsize, n_head, len_q, d_v) 
         return output, attn
 
 
@@ -51,7 +51,7 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             mask = mask.unsqueeze(1)  # For head axis broadcasting.
         if mode:
-            q, attn = self.attention(q, k, v, mode=True, mask=mask)
+            q, attn = self.attention(q, k, v, mode=True, mask=mask)  # output (batchsize, n_head, len_q, d_v), attn
         else:
             q, attn = self.attention(q, k, v, mode=False, mask=mask)
         # Transpose to move the head dimension back: b x lq x n x dv

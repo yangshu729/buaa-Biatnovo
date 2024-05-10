@@ -11,11 +11,11 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import deepnovo_config
-import Model.TrainingModel_indepedent as TM
+import Biatnovo.Model.TrainingModel_indepedent as TM
 from six.moves import xrange  # pylint: disable=redefined-builtin
-from DataProcessing import deepnovo_worker_io
-from DataProcessing.read import read_random_stack
-from Model.optim import ScheduledOptim
+from Biatnovo.DataProcessing import deepnovo_worker_io
+from Biatnovo.DataProcessing.read import read_random_stack
+from Biatnovo.Model.optim import ScheduledOptim
 
 
 __author__ = "Si-yu Wu"
@@ -98,6 +98,7 @@ def cal_folcal_loss(pred, gold, gamma=2):
     per_entry_cross_ent = -(pos_p_sub**gamma) * torch.log(torch.clamp(sigmoid_p, 1e-8, 1.0)) - (
         neg_p_sub**gamma
     ) * torch.log(torch.clamp(1.0 - sigmoid_p, 1e-8, 1.0))
+    # (batchsize * (decoder_size - 1), 对每个样本的每个类别loss求和
     return torch.sum(per_entry_cross_ent, dim=-1)
 
 
@@ -233,7 +234,7 @@ def train_cycle(model, worker_io_train, feature_index_list_train, opt, optimizer
         (
             spectrum_holder, # (batchsize, neighbor_size, 150000)
             intensity_inputs_forward, # (12, batchsize, 26, 40, 10)
-            intensity_inputs_backward,
+            intensity_inputs_backward, 
             decoder_inputs_forward, # (12, batchsize)
             decoder_inputs_backward,
             target_weights,

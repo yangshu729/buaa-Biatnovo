@@ -146,6 +146,8 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
+                if (feature_id == "F1:6312") : 
+                    print(predicted["feature_id"])
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]
@@ -484,6 +486,8 @@ class WorkerTest(object):
                 line_split = re.split("\t|\n", line)
                 predicted = {}
                 predicted["feature_id"] = line_split[col_feature_id]
+                if (predicted["feature_id"] == "F1:6312") : 
+                    print(predicted["feature_id"])
                 predicted["feature_area"] = float(line_split[col_feature_area])
                 predicted["scan_list_middle"] = line_split[col_scan_list_middle]
                 predicted["scan_list_original"] = line_split[col_scan_list_original]

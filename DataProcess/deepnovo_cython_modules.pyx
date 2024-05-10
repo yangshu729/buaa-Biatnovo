@@ -17,7 +17,7 @@ cimport numpy as np
 cimport cython
 
 import deepnovo_config
-import deepnovo_config_dda
+from Biatnovo import deepnovo_config_dda
 
 mass_ID_np = deepnovo_config.mass_ID_np
 cdef int GO_ID = deepnovo_config.GO_ID
