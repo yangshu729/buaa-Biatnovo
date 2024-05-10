@@ -1,6 +1,7 @@
 import datetime
 import logging
 import logging.config
+import os
 import time
 import torch
 import deepnovo_config
@@ -12,6 +13,8 @@ from v2.writer import DenovoWriter
 
 logger = logging.getLogger(__name__)
 def main():
+    pid = os.getpid()
+    logger.info(f"pid:{pid}")
     if deepnovo_config.args.train:
         logger.info("training mode")
         train()

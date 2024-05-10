@@ -1,1 +1,0 @@
-feature_id	feature_area	predicted_sequence	predicted_score	predicted_score_max	scan_list_middle	scan_list_original

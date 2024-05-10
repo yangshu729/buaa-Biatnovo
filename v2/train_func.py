@@ -30,7 +30,8 @@ def create_model(dropout_keep, training_mode):
         # model = torch.nn.DataParallel(model, device_ids=device_ids)
     else:
         print("create_model()")
-        model = DeepNovoAttion(dropout_keep).to(device)
+        model = DeepNovoAttion(dropout_keep)
+        model.to(device)
         # gptmodel = load
         # model.decoder = gptmodel.decoder
         # model.tgr_word_project = gptmodel.tgtrwork_projection
@@ -143,7 +144,7 @@ def train():
         print("epoch\tstep\tloss\tlast_accuracy_AA\tlast_accuracy_peptide\tvalid_loss\tvalid_accuracy_AA\tvalid_accuracy_peptide\n",
             file=log_file_handle, end="")
 
-    model, start_epoch = create_model(deepnovo_config.dropout_keep, True, device)
+    model, start_epoch = create_model(deepnovo_config.dropout_keep, True)
     optimizer = ScheduledOptim(
         optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
                     deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
@@ -161,6 +162,7 @@ def train():
         # learning rate schedule
         # adjust_learning_rate(optimizer, epoch)
         for i, data in enumerate(train_data_loader):
+            logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}")
             optimizer.zero_grad() # clear previous gradients
             # (batchsize, neighbor_size, 150000)
             (spectrum_holder, 

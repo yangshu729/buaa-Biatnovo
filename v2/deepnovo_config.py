@@ -6,6 +6,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import logging
 
 import numpy as np
 import calendar
@@ -17,6 +18,7 @@ import time
 
 import argparse
 
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", type=str, default="train")
@@ -186,19 +188,23 @@ print("embedding_size ", embedding_size)
 
 
 dropout_keep = {
-  "conv" : 0.25,
+  "conv" : 0.75,
   "dense" : 0.5,
-  "transformer": 0.2
+  "transformer": 0.5
 }
+
+logger.info(f"dropout_keep: {dropout_keep}")
 
 print("dropout_keep ", dropout_keep)
 
 
 batch_size = 128
 print("batch_size ", batch_size)
+logger.info(f"batchsize: {batch_size}")
 
 batch_size_predict = 32
 print("batch_size_predict: ", batch_size_predict)
+logger.info(f"batch_size_predict: {batch_size_predict}")
 
 num_workers = 6
 print("num_workers ", num_workers)
@@ -272,11 +278,16 @@ col_feature_area = "feature area"
 # pcol_score_max_unlabeled = 9
 
 cuda = True
-lr_mul = 2.0  # 0.5
+lr_mul = 0.5  # 0.5
 d_model = 256  # 256
 n_warmup_steps = 4000
 num_epoch = 30
 steps_per_validation = 100
-early_stop = 10
+early_stop = 49 + 10
 
+# ==============================================================================
+# transform parameters
+# ==============================================================================
+n_layers = 6
+print(n_layers)
 print("aaaaaa")
