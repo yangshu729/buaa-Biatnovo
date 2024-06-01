@@ -65,12 +65,95 @@ class MultiHeadAttention(nn.Module):
         q = self.layer_norm(q)
         return q, attn
 
+class SpectrumCNN2(nn.Module):  
+    ''' 
+        完全按照deepnovo-dia的模型结构版本
+        used to init lstm
+    '''
+    def __init__(self):
+        super().__init__()
+        self.neighbor_size = deepnovo_config.neighbor_size
+        self.mz_size = deepnovo_config.MZ_SIZE
+        self.spectrum_resolution = deepnovo_config.SPECTRUM_RESOLUTION
+        #  Total Padding=(W−1)×S+F−W   general formula
+        # stride = 1 , p = (F - 1) / 2
+        
+        self.maxpool1 = nn.MaxPool2d(kernel_size=(1, self.spectrum_resolution), stride=(1, self.spectrum_resolution), padding=(0, 0))
+        # 定义第一层卷积：输入通道1，输出通道4，卷积核大小(neighbor_size, 5) 
+        self.conv1 = nn.Conv2d(1, 4, (deepnovo_config.neighbor_size, 5), stride=(deepnovo_config.neighbor_size, 1), padding=(0, 2))
+        # 定义第二层卷积：输入输出通道均为4，卷积核大小(1, 4)
+        self.conv2 = nn.Conv2d(4, 4, (1, 5), stride=(1, 1), padding=(0, 2))
+        self.maxpool2 = nn.MaxPool2d(kernel_size=(1, 6), stride=(1, 4), padding=(0, 1))
+        # Dropout层
+        self.dropout = nn.Dropout(p=deepnovo_config.dropout_keep["conv"])  
+        # 计算全连接层输入尺寸
+        self.reduced_size = deepnovo_config.MZ_SIZE // self.spectrum_resolution 
+        # 计算全连接层输入尺寸
+        self.dense1_input_size = 1 * (self.reduced_size // 4) * 4
+        # 创建全连接层
+        self.dense1 = nn.Linear(self.dense1_input_size, deepnovo_config.num_units)
+        self.dropout2 = nn.Dropout(p=deepnovo_config.dropout_keep["dense"])
+        self.output = nn.Linear(deepnovo_config.num_units, 2 * deepnovo_config.num_units)
+    
+    #e.g. for 2D image, num_spatial_dim=2
+    def get_padding_needed(input_spatial_shape, filter_shape, strides):
+        num_spatial_dim=len(input_spatial_shape)
+        padding_needed=[0]*num_spatial_dim
+
+        for i in range(num_spatial_dim):
+            if input_spatial_shape[i] % strides[i] == 0:
+                padding_needed[i] = max(filter_shape[i]-strides[i],0)
+            else:
+                padding_needed[i] = max(filter_shape[i]-(input_spatial_shape[i] % strides[i]),0)
+
+        return padding_needed
+    #example
+    #print(get_padding_needed(input_spatial_shape=[2000,125],filter_shape=[8,4],strides=[4,1]))
+    #[4,3]
+
+
+    def forward(self, spectrum_holder):
+        # 改变张量形状以适应PyTorch的卷积层和池化层格式，这里维度顺序是(batch_size, channels, height, width)
+        # (batchsize, 5, 150000) -> (batchsize, 1, 5, 150000)
+        layer0 = spectrum_holder.view(-1, 1, self.neighbor_size, self.mz_size)
+        # 这表示池化层将沿着宽度方向上的self.spectrum_resolution个像素进行合并
+        # (batchsize, 1, 5, 150000) -> (batchsize, 1, 5, 3000)
+        layer0 = self.maxpool1(layer0)
+
+        # 第一层卷积和ReLU激活
+        # x=(batchsize, 4, 1, 3000)
+        x = F.relu(self.conv1(layer0))
+
+        # 第二层卷积和ReLU激活
+        # x=[batch_size, 4, 1, 3000]
+        x = F.relu(self.conv2(x))
+
+        # 应用第二次最大池化
+        # x= [batch_size, 4, 1, 750]
+        x = self.maxpool2(x)
+
+        # 应用Dropout
+        # 维度不变，仍为: [batch_size, 4, 1, 750]
+        x = self.dropout(x)
+        # x=[batch_size, 3000]
+        x = x.view(-1, self.dense1_input_size)  # 注意：确保x在重塑前的形状是正确的
+        # 应用全连接层和ReLU激活函数
+        # x=[batch_size, 512]
+        x = F.relu(self.dense1(x))
+        # 应用Dropout
+        x = self.dropout2(x)
+        x = F.relu(self.output(x))
+        x = x.unsqueeze(0)  # [1, batch_size, 2*num_units]
+        x = x.expand(deepnovo_config.lstm_layers, -1, -1)
+        h0, c0 = torch.split(x, deepnovo_config.num_units, dim=2)
+        return h0.contiguous(), c0.contiguous()
+    
 class SpectrumCNN(nn.Module):
     def __init__(self, dropout_keep: dict):
         super().__init__()
         self.maxpool1 = nn.MaxPool2d((1, 50))
-        self.conv1 = nn.Conv2d(1, 4, (5, 5), stride=(5, 1), padding=(0, 2))
-        self.conv2 = nn.Conv2d(4, 16, (1, 5), stride=(1, 1), padding=(0, 2))
+        self.conv1 = nn.Conv2d(1, 4, (5, 5), stride=(5, 1), padding=(0, 2))  # (3000 * 1 + 5 - 3000) / 2 = 2
+        self.conv2 = nn.Conv2d(4, 16, (1, 5), stride=(1, 1), padding=(0, 2)) 
         self.maxpool2 = nn.MaxPool2d((1, 6), stride=(1, 4), padding=(0, 1))
         # self.fc = nn.Linear(750, 512)
         self.fc = nn.Linear(750, 256)
@@ -100,8 +183,8 @@ class SpectrumCNN(nn.Module):
 class IonCNN(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(IonCNN, self).__init__()
-        self.conv1 = nn.Conv3d(26, 64, (1, 3, 3), padding=(0, 1, 1))
-        self.conv2 = nn.Conv3d(64, 64, (1, 3, 3), padding=(0, 1, 1))
+        self.conv1 = nn.Conv3d(26, 64, (1, 3, 3), padding=(0, 1, 1))   # (w - F + 2p) / s + 1
+        self.conv2 = nn.Conv3d(64, 64, (1, 3, 3), padding=(0, 1, 1))  # 
         self.conv3 = nn.Conv3d(64, 64, (1, 3, 3), padding=(0, 1, 1))
         self.maxpool = nn.MaxPool3d((1, 2, 2), padding=(0, 1, 0), stride=(1, 2, 2))
         self.fc = nn.Linear(7680, 512)
@@ -117,7 +200,7 @@ class IonCNN(nn.Module):
             deepnovo_config.neighbor_size,
             deepnovo_config.WINDOW_SIZE,
         )
-        # (batchsize, 26, 8, 5, 10)
+        # (batchsize, 26, 8, 5, 10) (N, C_{in}, D, H, W)
         output = F.relu(self.conv1(input_intensity))
         # (batchsize, 64, 8, 5, 10)
         output = F.relu(self.conv2(output))
@@ -249,14 +332,20 @@ class DeepNovoAttion(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(DeepNovoAttion, self).__init__()
         self.ion_cnn = IonCNN(dropout_keep=dropout_keep)
-        self.spectrum_cnn = SpectrumCNN(dropout_keep=dropout_keep)  
+        self.spectrum_cnn = SpectrumCNN2()  
+        self.lstm = nn.LSTM(deepnovo_config.embedding_size, deepnovo_config.num_units,
+                                    num_layers=deepnovo_config.lstm_layers,
+                                    batch_first=True)
+        self.embedding = nn.Embedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID)
+        self.output_layer = nn.Linear(2*deepnovo_config.num_units, deepnovo_config.vocab_size)
         self.transformer = Transformer(26, 256, 6, 8, 32, 32, 256, 256, 0, dropout_keep=dropout_keep)
         self.word_emb = nn.Embedding(
             deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID
         )
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
+        self.linear = nn.Linear(512, deepnovo_config.vocab_size)
         self.trg_word_prj = nn.Linear(768, deepnovo_config.vocab_size, bias=False)
-        self.dropout_keep = dropout_keep
+        self.dropout_keep = dropout_keep        
 
     def get_src_mask(self, spectrum_cnn_output):
         sz_b, len_q = spectrum_cnn_output.size(0), spectrum_cnn_output.size(1)
@@ -270,56 +359,97 @@ class DeepNovoAttion(nn.Module):
     
     def get_pad_mask(self, seq, pad_idx):
         return (seq != pad_idx).unsqueeze(-2)
-
+    
     def forward(self, 
                 spectrum_holder, # shape=(batchsize, 5, 150000)
                 intensity_inputs_forward, # shape = (seq_len, batchsize, 26, 40, 10)
                 intensity_inputs_backward,
                 decoder_inputs_forward,  # shape=(seq_len - 1, batch_size)
                 decoder_inputs_backward):
-            spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder) # (batchsize, 16, 256)
-            decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
-            decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
-            # (batchsize, seq_len, embedding_size)
-            decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
-            decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
-            src_mask = self.get_src_mask(spectrum_cnn_outputs)  # 全1,不mask
-            # (batchsize, seq_len,seq_len)
-            trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
-                decoder_inputs_forward_trans
-            )
-            # (batchsize, seq len, ebmedding_size)
-            output_transformer_forward = self.transformer(
-                decoder_inputs_forward_trans, trg_mask, spectrum_cnn_outputs, src_mask
-            )
-            output_transformer_backward = self.transformer(
-                decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask
-            )
-            output_forward = []
-            output_backward = []
-            for direction, intensity_inputs, decoder_inputs_emb, outputs in zip(
-                ["forward", "backward"],
-                [intensity_inputs_forward, intensity_inputs_backward],
-                [decoder_inputs_forward_emb_ion, decoder_inputs_backward_emb_ion],
-                [output_forward, output_backward],
-            ):
-                for i, AA_2 in enumerate(decoder_inputs_emb):
-                    input_intensity = torch.tensor(intensity_inputs[i]).cuda()
-                    output = self.ion_cnn(input_intensity)
-                    output = output.unsqueeze_(0)  # (1, batchsize, 512)
-                    outputs.append(output)
-            output_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
-            output_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
-             # (batchsize, seq len, 768)
-            output_forward = torch.cat([output_transformer_forward, output_forward], dim=2)
-            # (batchsize, seq len, 768)
-            output_backward = torch.cat([output_transformer_backward, output_backward], dim=2)
-            # (batchsize, seq len, 26)
-            logit_forward = self.trg_word_prj(output_forward)
-            logit_backward = self.trg_word_prj(output_backward)
-            # (batchsize , seq len, 26)
-            #return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
-            return logit_forward, logit_backward
+        # state_tuple = self.spectrum_cnn(spectrum_holder)
+        decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
+        decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
+        # # (batchsize, seq_len, embedding_size)
+        # decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
+        # decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
+        # aa_input_forward_embedded = self.embedding(decoder_inputs_forward_trans)
+        # aa_input_backward_embedded = self.embedding(decoder_inputs_backward_trans)
+        # lstm_feature_forward, new_state_tuple_forward = self.lstm(aa_input_forward_embedded, state_tuple)  # [batch, seq_len, num_units], (h_t, c_t)
+        # lstm_feature_backward, new_state_tuple_backward = self.lstm(aa_input_backward_embedded, state_tuple)  # [batch, seq_len, num_units], (h_t, c_t)
+        output_forward = []
+        output_backward = []
+        for direction, intensity_inputs, decoder_inputs_emb, outputs in zip(
+            ["forward", "backward"],
+            [intensity_inputs_forward, intensity_inputs_backward],
+            [decoder_inputs_forward_emb_ion, decoder_inputs_backward_emb_ion],
+            [output_forward, output_backward],
+        ):
+            for i, AA_2 in enumerate(decoder_inputs_emb):
+                input_intensity = torch.tensor(intensity_inputs[i]).cuda()
+                output = self.ion_cnn(input_intensity)
+                output = output.unsqueeze_(0)  # (1, batchsize, 512)
+                outputs.append(output)
+        output_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
+        output_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
+        # （batchsize, seq_len, 2 * num_units）
+        # concat_feature_forward = torch.cat((output_forward, lstm_feature_forward), dim=2)
+        # concat_feature_backward = torch.cat((output_backward, lstm_feature_backward), dim=2)
+        # (batchsize, seq len, 26)
+        # logit_forward = self.output_layer(concat_feature_forward)
+        # logit_backward = self.output_layer(concat_feature_backward)
+        logit_forward = self.linear(output_forward)
+        logit_backward = self.linear(output_forward)
+        return logit_forward, logit_backward
+        
+    # def forward(self, 
+    #             spectrum_holder, # shape=(batchsize, 5, 150000)
+    #             intensity_inputs_forward, # shape = (seq_len, batchsize, 26, 40, 10)
+    #             intensity_inputs_backward,
+    #             state_tuple, 
+    #             decoder_inputs_forward,  # shape=(seq_len - 1, batch_size)
+    #             decoder_inputs_backward):
+    #         decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
+    #         decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
+    #         # (batchsize, seq_len, embedding_size)
+    #         decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
+    #         decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
+    #         src_mask = self.get_src_mask(spectrum_cnn_outputs)  # 全1,不mask
+    #         # (batchsize, seq_len,seq_len)
+    #         trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
+    #             decoder_inputs_forward_trans
+    #         )
+    #         # (batchsize, seq len, ebmedding_size)
+    #         output_transformer_forward = self.transformer(
+    #             decoder_inputs_forward_trans, trg_mask, spectrum_cnn_outputs, src_mask
+    #         )
+    #         output_transformer_backward = self.transformer(
+    #             decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask
+    #         )
+    #         output_forward = []
+    #         output_backward = []
+    #         for direction, intensity_inputs, decoder_inputs_emb, outputs in zip(
+    #             ["forward", "backward"],
+    #             [intensity_inputs_forward, intensity_inputs_backward],
+    #             [decoder_inputs_forward_emb_ion, decoder_inputs_backward_emb_ion],
+    #             [output_forward, output_backward],
+    #         ):
+    #             for i, AA_2 in enumerate(decoder_inputs_emb):
+    #                 input_intensity = torch.tensor(intensity_inputs[i]).cuda()
+    #                 output = self.ion_cnn(input_intensity)
+    #                 output = output.unsqueeze_(0)  # (1, batchsize, 512)
+    #                 outputs.append(output)
+    #         output_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
+    #         output_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
+    #          # (batchsize, seq len, 768)
+    #         output_forward = torch.cat([output_transformer_forward, output_forward], dim=2)
+    #         # (batchsize, seq len, 768)
+    #         output_backward = torch.cat([output_transformer_backward, output_backward], dim=2)
+    #         # (batchsize, seq len, 26)
+    #         logit_forward = self.trg_word_prj(output_forward)
+    #         logit_backward = self.trg_word_prj(output_backward)
+    #         # (batchsize , seq len, 26)
+    #         #return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
+    #         return logit_forward, logit_backward
     
 class InferenceModelWrapper(object):
     def __init__(self, model : DeepNovoAttion):

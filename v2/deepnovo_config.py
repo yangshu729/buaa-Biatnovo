@@ -150,7 +150,7 @@ WINDOW_SIZE = 10  # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
-MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION)  # 30k
+MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION)  # 150000
 KNAPSACK_AA_RESOLUTION = 10000  # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION))  # 57.02146
 KNAPSACK_MASS_PRECISION_TOLERANCE = 100  # 0.01 Da
@@ -289,5 +289,7 @@ early_stop = 49 + 10
 # transform parameters
 # ==============================================================================
 n_layers = 6
+num_units = 512
+lstm_layers = 2
 print(n_layers)
 print("aaaaaa")
