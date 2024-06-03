@@ -117,8 +117,9 @@ def train():
     steps_per_epoch = int(num_train_features / deepnovo_config.batch_size)
     logger.info(f"{steps_per_epoch} steps per epoch")
     train_data_loader = torch.utils.data.DataLoader(dataset=train_set,
-                                                    batch_size=deepnovo_config.batch_size,
-                                                    shuffle=True,
+                                                    #batch_size=deepnovo_config.batch_size,
+                                                    batch_size=1,
+                                                    shuffle=False,
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
     valid_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_valid,
