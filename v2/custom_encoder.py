@@ -19,19 +19,20 @@ class CustomLinear(nn.Module):
         return torch.relu(torch.matmul(input, self.weight.t()) + self.bias)
 
 class CustomLinearNoReLU(nn.Module):
-    def __init__(self, input_dim, output_dim, init_weight, init_bias):
+    def __init__(self, input_size, output_size, init_weight, init_bias):
         super(CustomLinearNoReLU, self).__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
+        self.weight = nn.Parameter(torch.empty(output_size, input_size))
+        self.bias = nn.Parameter(torch.empty(output_size))
         self.init_weight = init_weight
         self.init_bias = init_bias
         self.reset_parameters()
     
     def reset_parameters(self):
-        self.init_weight(self.linear.weight)
-        self.init_bias(self.linear.bias)
+        self.init_weight(self.weight)
+        self.init_bias(self.bias)
     
-    def forward(self, x):
-        return self.linear(x)
+    def forward(self, input):
+        return torch.matmul(input, self.weight.t()) + self.bias
 
 def uniform_unit_scaling_initializer(tensor, scale=1.43):
     fan_in, fan_out = init._calculate_fan_in_and_fan_out(tensor)

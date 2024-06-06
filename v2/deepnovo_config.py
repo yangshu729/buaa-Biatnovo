@@ -193,12 +193,18 @@ dropout_keep = {
   "transformer": 0.5
 }
 
+# dropout_keep = {
+#   "conv" : 0,
+#   "dense" : 0,
+#   "transformer": 0
+# }
+
 logger.info(f"dropout_keep: {dropout_keep}")
 
 print("dropout_keep ", dropout_keep)
 
 
-batch_size = 128
+batch_size = 32
 print("batch_size ", batch_size)
 logger.info(f"batchsize: {batch_size}")
 

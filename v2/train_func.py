@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 import time
 import torch
@@ -81,11 +82,11 @@ def validation(model, valid_loader, data_set_len) -> float:
 
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
-            output_logits_forward_trans = output_logits_forward.view(-1, output_logits_forward.size(2))
-            output_logits_backward_trans = output_logits_backward.view(-1, output_logits_backward.size(2))
+            output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
+            output_logits_backward_trans = output_logits_backward.reshape(-1, output_logits_backward.size(2))
             output_logits_forward = output_logits_forward.transpose(0, 1) 
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
-            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, 0)
+            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batch_size)
             # gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             # gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             # loss = cal_dia_focal_loss(output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0)
@@ -107,8 +108,9 @@ def validation(model, valid_loader, data_set_len) -> float:
     avg_loss /= data_set_len
     avg_accuracy_AA /= avg_len_AA
     avg_accuracy_peptide /= data_set_len
+    eval_ppx = math.exp(avg_loss) if avg_loss < 300 else float('inf')
     
-    return avg_loss.item(), avg_accuracy_AA, avg_accuracy_peptide
+    return eval_ppx, avg_accuracy_AA, avg_accuracy_peptide
 
 def train():
     train_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_train,
@@ -117,9 +119,9 @@ def train():
     steps_per_epoch = int(num_train_features / deepnovo_config.batch_size)
     logger.info(f"{steps_per_epoch} steps per epoch")
     train_data_loader = torch.utils.data.DataLoader(dataset=train_set,
-                                                    #batch_size=deepnovo_config.batch_size,
-                                                    batch_size=1,
-                                                    shuffle=False,
+                                                    batch_size=deepnovo_config.batch_size,
+                                                    #batch_size=1,
+                                                    shuffle=True,
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
     valid_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_valid,
@@ -142,14 +144,17 @@ def train():
     logger.info(f"Open log_file: {log_file}")
 
     with open(log_file, 'a') as log_file_handle:
-        print("epoch\tstep\tloss\tlast_accuracy_AA\tlast_accuracy_peptide\tvalid_loss\tvalid_accuracy_AA\tvalid_accuracy_peptide\n",
+        print("epoch\tstep\tperplexity\tlast_accuracy_AA\tlast_accuracy_peptide\tvalid_perplexity\tvalid_accuracy_AA\tvalid_accuracy_peptide\n",
             file=log_file_handle, end="")
 
     model, start_epoch = create_model(deepnovo_config.dropout_keep, True)
-    optimizer = ScheduledOptim(
-        optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
-                    deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
-    )
+    # optimizer = ScheduledOptim(
+    #     optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
+    #                 deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
+    # )
+    params = list(model.parameters())
+    optimizer = optim.Adam(params)
+    
     checkpoint_path = os.path.join(deepnovo_config.train_dir, "translate.ckpt")
     
     best_valid_loss = float("inf")
@@ -162,6 +167,7 @@ def train():
     for epoch in range(deepnovo_config.num_epoch):
         # learning rate schedule
         # adjust_learning_rate(optimizer, epoch)
+        new_loss = 0.0
         for i, data in enumerate(train_data_loader):
             logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}")
             optimizer.zero_grad() # clear previous gradients
@@ -197,24 +203,28 @@ def train():
             )
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
-            output_logits_forward_trans = output_logits_forward.view(-1, output_logits_forward.size(2))
-            output_logits_backward_trans = output_logits_backward.view(-1, output_logits_backward.size(2))
+            output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
+            output_logits_backward_trans = output_logits_backward.reshape(-1, output_logits_backward.size(2))
             output_logits_forward = output_logits_forward.transpose(0, 1) 
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
-            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, 0)
+            loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batchsize)
             loss.backward()
-            optimizer.step_and_update_lr()
-            # 更新最近的loss列表
-            if len(recent_losses) < deepnovo_config.steps_per_validation:
-                recent_losses.append(loss.item() / batchsize)
-            else:
-                recent_losses.pop(0)
-                recent_losses.append(loss.item() / batchsize)
+            torch.nn.utils.clip_grad_norm_(params, deepnovo_config.max_gradient_norm)
+            optimizer.step()
+            #gradient_norms.append(norm)
+            # for name, param in model.named_parameters():
+            #     if param.requires_grad:
+            #         if param.grad is not None:
+            #             print("{}, gradient: {}".format(name, param.grad.mean()))
+            new_loss += loss.item() / deepnovo_config.steps_per_validation
+            #optimizer.step_and_update_lr()
+            
             if (i + 1) % deepnovo_config.steps_per_validation == 0:
                 duration = time.time() - start_time
                 step_time = duration / deepnovo_config.steps_per_validation
                 # loss are averaged over last  steps_per_validation
-                avg_loss = sum(recent_losses) / len(recent_losses)
+                perplexity = math.exp(new_loss) if new_loss < 300 else float('inf')
+                new_loss = 0.0
                 
                 # accuracy is last batch
                 (batch_accuracy_AA,
@@ -233,7 +243,7 @@ def train():
                     print("%d\t%d\t%.4f\t%.4f\t%.4f\t" %
                         (epoch,
                         i + 1,
-                        avg_loss,
+                        perplexity,
                         accuracy_AA,
                         accuracy_peptide),
                         file=log_file_handle,
@@ -241,21 +251,21 @@ def train():
                 # validation
                 model.eval()
                 validaion_begin_time = time.time()
-                validation_loss, accuracy_AA, accuracy_peptide  = validation(model, valid_data_loader, len(valid_set))
+                validation_perplexity, accuracy_AA, accuracy_peptide  = validation(model, valid_data_loader, len(valid_set))
                 validation_duration = time.time() - validaion_begin_time
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
-                            f"train loss: {avg_loss}\tstep time: {step_time} "
-                            f"validation loss: {validation_loss}")
+                            f"train perplexity: {perplexity}\tstep time: {step_time} "
+                            f"validation loss: {validation_perplexity}")
                 logger.info(f"validation cost: {validation_duration} seconds")
                 with open(log_file, 'a') as log_file_handle:
-                    print("%.4f \t %.4f \t %.4f\n" % (validation_loss, accuracy_AA, accuracy_peptide),
+                    print("%.4f \t %.4f \t %.4f\n" % (validation_perplexity, accuracy_AA, accuracy_peptide),
                     file=log_file_handle,
                     end="")
                 model.train()
                 start_time = time.time()
-                if validation_loss < best_valid_loss:
+                if validation_perplexity < best_valid_loss:
                     no_update_count = 0
-                    best_valid_loss = validation_loss
+                    best_valid_loss = validation_perplexity
                     logger.info(f"best valid loss achieved at epoch {epoch} step {i}")
                     checkpoint = {"epoch": epoch,  "model": model.state_dict()}
                     torch.save(checkpoint, checkpoint_path)

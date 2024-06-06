@@ -17,7 +17,7 @@ def cal_folcal_loss(pred, gold, gamma=2):
     # (batchsize * (decoder_size - 1), 对每个样本的每个类别loss求和
     return torch.sum(per_entry_cross_ent, dim=-1)
 
-def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, trg_pad_idx):
+def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, batch_size):
     # pred_forward.shape = (batchsize * (decoder_size - 1), num_classes) 
     zeros_forward = torch.zeros_like(gold_forward, dtype=gold_forward.dtype)
     ones_forward = torch.ones_like(gold_forward, dtype=gold_forward.dtype)
@@ -28,10 +28,14 @@ def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward,
     gold_backward_weight = torch.where(gold_backward == 0, zeros_backward, ones_backward)
     # focal_loss和weight逐元素相乘，loss_f 的 shape 为 (batchsize * (decoder_size - 1),)
     loss_f = cal_folcal_loss(pred_forward, gold_forward) * gold_forward_weight
+    total_forward_weight = torch.sum(gold_forward_weight) + 1e-12
+    loss_f = torch.sum(loss_f) / total_forward_weight
     loss_b = cal_folcal_loss(pred_backward, gold_backward) * gold_backward_weight
-    loss_forward = torch.sum(loss_f)
-    loss_backward = torch.sum(loss_b)
-    loss = loss_forward + loss_backward
+    total_backward_weight = torch.sum(gold_backward_weight) + 1e-12
+    loss_b = torch.sum(loss_b) / total_backward_weight
+    loss_f = loss_f / batch_size
+    loss_b = loss_b / batch_size
+    loss = (loss_b + loss_f) / 2.0
     return loss
 
 
@@ -146,3 +150,5 @@ def test_AA_match_1by1(decoder_input, output):
     index_aa += 1
 
   return num_match
+
+  

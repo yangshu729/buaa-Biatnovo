@@ -193,11 +193,11 @@ class IonCNN(nn.Module):
         self.conv3 = CustomConv3D(64, 64, (1, 3, 3), (1, 1, 1), padding=(0, 1, 1))
         self.maxpool = nn.MaxPool3d((1, 2, 2), padding=(0, 1, 0), stride=(1, 2, 2))
         #self.fc = nn.Linear(7680, 512)
-        self.dense1 = CustomLinear(7680, 512, init_weight=lambda x: uniform_unit_scaling_initializer(x, 1.43), 
+        self.dense1 = CustomLinear(7680, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43), 
                                 init_bias=lambda x: constant_initializer(x, 0.1))
         #self.fc = CustomLinear(512, 26, init_weight=lambda x: uniform_unit_scaling_initializer(x, 1.43),
         #                         init_bias=lambda x: constant_initializer(x, 0.1))
-        self.fc = CustomLinearNoReLU(512, 26, init_weight=lambda x: variance_scaling_initializer(x, scale=1.43, mode='fan_avg', distribution='uniform'),
+        self.fc = CustomLinearNoReLU(512, 26, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
                                     init_bias=lambda x: constant_initializer(x, value=0.1))
         #self.fc = nn.Linear(512, deepnovo_config.vocab_size)
         self.dropout1 = nn.Dropout(p=dropout_keep["conv"])
@@ -230,54 +230,14 @@ class IonCNN(nn.Module):
             * 64,
         )
         # (batchsize, 512)
-        dense1 = F.relu(self.dense1(dropout1))
+        dense1 = self.dense1(dropout1)
         dropout2 = self.dropout2(dense1)
+        ion_cnn_feature = dropout2
 
         # Output layer
-        output = self.fc(dropout2)
-        return output
+        ion_cnn_logit = self.fc(dropout2)
+        return ion_cnn_feature, ion_cnn_logit
     
-# class IonCNN(nn.Module):
-#     def __init__(self, dropout_keep: dict):
-#         super(IonCNN, self).__init__()
-#         self.conv1 = nn.Conv3d(26, 64, (1, 3, 3), padding=(0, 1, 1))   # (w - F + 2p) / s + 1
-#         self.conv2 = nn.Conv3d(64, 64, (1, 3, 3), padding=(0, 1, 1))  # 
-#         self.conv3 = nn.Conv3d(64, 64, (1, 3, 3), padding=(0, 1, 1))
-#         self.maxpool = nn.MaxPool3d((1, 2, 2), padding=(0, 1, 0), stride=(1, 2, 2))
-#         self.fc = nn.Linear(7680, 512)
-#         self.dropout1 = nn.Dropout(p=dropout_keep["conv"])
-#         self.dropout2 = nn.Dropout(p=dropout_keep["dense"])
-
-#     def forward(self, input_intensity):
-#         # (batchsize, 26, 40, 10)
-#         input_intensity = input_intensity.view(
-#             -1,
-#             deepnovo_config.vocab_size,
-#             deepnovo_config.num_ion,
-#             deepnovo_config.neighbor_size,
-#             deepnovo_config.WINDOW_SIZE,
-#         )
-#         # (batchsize, 26, 8, 5, 10) (N, C_{in}, D, H, W)
-#         output = F.relu(self.conv1(input_intensity))
-#         # (batchsize, 64, 8, 5, 10)
-#         output = F.relu(self.conv2(output))
-#         # (batchsize, 64, 8, 5, 10)
-#         output = F.relu(self.conv3(output))
-#         # (batchsize, 64, 8, 3, 5)
-#         output = self.maxpool(output)
-#         output = self.dropout1(output)
-#         # (batchsize, 7680)
-#         output = output.view(
-#             -1,
-#             deepnovo_config.num_ion
-#             * (deepnovo_config.neighbor_size // 2 + 1)
-#             * (deepnovo_config.WINDOW_SIZE // 2)
-#             * 64,
-#         )
-#         # (batchsize, 512)
-#         output = F.relu(self.fc(output))
-#         output = self.dropout2(output)
-#         return output
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_hid, n_position=200):
@@ -443,9 +403,9 @@ class DeepNovoAttion(nn.Module):
         ):
             for i, AA_2 in enumerate(decoder_inputs_emb):
                 input_intensity = torch.tensor(intensity_inputs[i]).cuda()
-                output = self.ion_cnn(input_intensity)
-                output = output.unsqueeze_(0)  # (1, batchsize, 26)
-                outputs.append(output)
+                ion_cnn_feature, ion_cnn_logit = self.ion_cnn(input_intensity)
+                ion_cnn_logit = ion_cnn_logit.unsqueeze_(0)  # (1, batchsize, 26)
+                outputs.append(ion_cnn_logit)
         output_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
         output_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
         # （batchsize, seq_len, 2 * num_units）
@@ -523,7 +483,7 @@ class InferenceModelWrapper(object):
     def inference(self, spectrum_cnn_outputs, candidate_intensity, decoder_inputs):
         with torch.no_grad():
             # spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder, self.dropout_keep)
-            output_ion_cnn = self.model.ion_cnn(candidate_intensity) # candidate_intensity shape=(batchsize, 26, 40, 10)
+            output_ion_cnn = self.model.ion_cnn(candidate_intensity)
             # (batchsize, embedding_size)
             src_mask = self.model.get_src_mask(spectrum_cnn_outputs) # spectrum_cnn_outputs shape=(batchsize, 16, 256), src_mask shape=(batchsize, 16)
             decoder_inputs_trans = decoder_inputs.permute(1, 0) # decoder_inputs shape=(seq_len, batchsize), decode_inputs_trans shape=(batchsize, seq_len)

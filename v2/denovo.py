@@ -285,9 +285,9 @@ class DeepNovoAttionDenovo():
             block_decoder_inputs = torch.from_numpy(np.array(block_aa_id_list).transpose(1, 0)).to(device)
             block_spectrum_cnn_outputs = torch.cat(block_spectrum_cnn_outputs, dim=0)
 
-            current_log_prob = model_wrapper.inference(  # (batchsize * beamsize, 26)
+            current_log_prob = model_wrapper.inference(  
                 block_spectrum_cnn_outputs,
-                block_intensity_input,
+                block_intensity_input, # (batchsize * beamsize, 26)
                 block_decoder_inputs,  # (seq_len, batchsize)
             )
             # transfer log_prob back to cpu
