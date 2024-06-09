@@ -190,7 +190,7 @@ print("embedding_size ", embedding_size)
 dropout_keep = {
   "conv" : 0.75,
   "dense" : 0.5,
-  "transformer": 0.5
+  "transformer": 0.2
 }
 
 # dropout_keep = {

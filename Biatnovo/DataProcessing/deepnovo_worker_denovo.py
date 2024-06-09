@@ -2009,7 +2009,7 @@ class WorkerDenovo(object):
                 "mass_tolerance": self.precursor_mass_tolerance,
             }
             for x in spectrum_batch
-        ]
+        ]  # list of dict, size= batchsize
         peak_list.append(peak_batch)
         mass_EOS = self.mass_ID[self.EOS_ID]
         peak_batch = [
@@ -2019,7 +2019,7 @@ class WorkerDenovo(object):
                 "mass_tolerance": self.precursor_mass_tolerance,
             }
             for x in spectrum_batch
-        ]
+        ]  # list of dict, size= batchsize
         peak_list.append(peak_batch)
         argmax_mass_batch = []
         argmax_mass_complement_batch = []
