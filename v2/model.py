@@ -69,8 +69,8 @@ class MultiHeadAttention(nn.Module):
         q = self.layer_norm(q)
         return q, attn
 
-class SpectrumCNN2(nn.Module):  
-    ''' 
+class SpectrumCNN2(nn.Module):
+    '''
         完全按照deepnovo-dia的模型结构版本
         used to init lstm
     '''
@@ -81,24 +81,24 @@ class SpectrumCNN2(nn.Module):
         self.spectrum_resolution = deepnovo_config.SPECTRUM_RESOLUTION
         #  Total Padding=(W−1)×S+F−W   general formula
         # stride = 1 , p = (F - 1) / 2
-        
+
         self.maxpool1 = nn.MaxPool2d(kernel_size=(1, self.spectrum_resolution), stride=(1, self.spectrum_resolution), padding=(0, 0))
-        # 定义第一层卷积：输入通道1，输出通道4，卷积核大小(neighbor_size, 5) 
+        # 定义第一层卷积：输入通道1，输出通道4，卷积核大小(neighbor_size, 5)
         self.conv1 = nn.Conv2d(1, 4, (deepnovo_config.neighbor_size, 5), stride=(deepnovo_config.neighbor_size, 1), padding=(0, 2))
         # 定义第二层卷积：输入输出通道均为4，卷积核大小(1, 4)
         self.conv2 = nn.Conv2d(4, 4, (1, 5), stride=(1, 1), padding=(0, 2))
         self.maxpool2 = nn.MaxPool2d(kernel_size=(1, 6), stride=(1, 4), padding=(0, 1))
         # Dropout层
-        self.dropout = nn.Dropout(p=deepnovo_config.dropout_keep["conv"])  
+        self.dropout = nn.Dropout(p=deepnovo_config.dropout_keep["conv"])
         # 计算全连接层输入尺寸
-        self.reduced_size = deepnovo_config.MZ_SIZE // self.spectrum_resolution 
+        self.reduced_size = deepnovo_config.MZ_SIZE // self.spectrum_resolution
         # 计算全连接层输入尺寸
         self.dense1_input_size = 1 * (self.reduced_size // 4) * 4
         # 创建全连接层
         self.dense1 = nn.Linear(self.dense1_input_size, deepnovo_config.num_units)
         self.dropout2 = nn.Dropout(p=deepnovo_config.dropout_keep["dense"])
         self.output = nn.Linear(deepnovo_config.num_units, 2 * deepnovo_config.num_units)
-    
+
     #e.g. for 2D image, num_spatial_dim=2
     def get_padding_needed(input_spatial_shape, filter_shape, strides):
         num_spatial_dim=len(input_spatial_shape)
@@ -151,13 +151,13 @@ class SpectrumCNN2(nn.Module):
         x = x.expand(deepnovo_config.lstm_layers, -1, -1)
         h0, c0 = torch.split(x, deepnovo_config.num_units, dim=2)
         return h0.contiguous(), c0.contiguous()
-    
+
 class SpectrumCNN(nn.Module):
     def __init__(self, dropout_keep: dict):
         super().__init__()
         self.maxpool1 = nn.MaxPool2d((1, 50))
         self.conv1 = nn.Conv2d(1, 4, (5, 5), stride=(5, 1), padding=(0, 2))  # (3000 * 1 + 5 - 3000) / 2 = 2
-        self.conv2 = nn.Conv2d(4, 16, (1, 5), stride=(1, 1), padding=(0, 2)) 
+        self.conv2 = nn.Conv2d(4, 16, (1, 5), stride=(1, 1), padding=(0, 2))
         self.maxpool2 = nn.MaxPool2d((1, 6), stride=(1, 4), padding=(0, 1))
         # self.fc = nn.Linear(750, 512)
         self.fc = nn.Linear(750, 256)
@@ -183,25 +183,25 @@ class SpectrumCNN(nn.Module):
         output = self.dropout2(output)
         # (batchsize, 16, 256)
         return output
-    
+
 class IonCNN(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(IonCNN, self).__init__()
         #self.conv1 = nn.Conv3d(26, 64, (1, 3, 3), padding=(0, 1, 1))   # (w - F + 2p) / s + 1
         self.conv1 = CustomConv3D(26, 64, (1, 3, 3), (1, 1, 1), padding=(0, 1, 1))
-        self.conv2 = CustomConv3D(64, 64, (1, 3, 3), (1, 1, 1), padding=(0, 1, 1))  # 
+        self.conv2 = CustomConv3D(64, 64, (1, 3, 3), (1, 1, 1), padding=(0, 1, 1))  #
         self.conv3 = CustomConv3D(64, 64, (1, 3, 3), (1, 1, 1), padding=(0, 1, 1))
         self.maxpool = nn.MaxPool3d((1, 2, 2), padding=(0, 1, 0), stride=(1, 2, 2))
         #self.fc = nn.Linear(7680, 512)
-        self.dense1 = CustomLinear(7680, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43), 
+        self.dense1 = CustomLinear(7680, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
                                 init_bias=lambda x: constant_initializer(x, 0.1))
         #self.fc = CustomLinear(512, 26, init_weight=lambda x: uniform_unit_scaling_initializer(x, 1.43),
         #                         init_bias=lambda x: constant_initializer(x, 0.1))
         self.fc = CustomLinearNoReLU(512, 26, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
                                     init_bias=lambda x: constant_initializer(x, value=0.1))
         #self.fc = nn.Linear(512, deepnovo_config.vocab_size)
-        self.dropout1 = nn.Dropout(p=dropout_keep["conv"])
-        self.dropout2 = nn.Dropout(p=dropout_keep["dense"])
+        self.dropout1 = nn.Dropout(p=(1-dropout_keep["conv"]))
+        self.dropout2 = nn.Dropout(p=(1-dropout_keep["dense"]))
 
     def forward(self, input_intensity):
         # (batchsize, 26, 40, 10)
@@ -237,7 +237,7 @@ class IonCNN(nn.Module):
         # Output layer
         ion_cnn_logit = self.fc(dropout2)
         return ion_cnn_feature, ion_cnn_logit
-    
+
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_hid, n_position=200):
@@ -349,7 +349,7 @@ class DeepNovoAttion(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(DeepNovoAttion, self).__init__()
         self.ion_cnn = IonCNN(dropout_keep=dropout_keep)
-        self.spectrum_cnn = SpectrumCNN2()  
+        self.spectrum_cnn = SpectrumCNN2()
         self.lstm = nn.LSTM(deepnovo_config.embedding_size, deepnovo_config.num_units,
                                     num_layers=deepnovo_config.lstm_layers,
                                     batch_first=True)
@@ -362,7 +362,7 @@ class DeepNovoAttion(nn.Module):
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
         self.linear = nn.Linear(512, deepnovo_config.vocab_size)
         self.trg_word_prj = nn.Linear(768, deepnovo_config.vocab_size, bias=False)
-        self.dropout_keep = dropout_keep        
+        self.dropout_keep = dropout_keep
 
     def get_src_mask(self, spectrum_cnn_output):
         sz_b, len_q = spectrum_cnn_output.size(0), spectrum_cnn_output.size(1)
@@ -372,12 +372,12 @@ class DeepNovoAttion(nn.Module):
         """For masking out the subsequent info."""
         sz_b, len_s = seq.size()
         subsequent_mask = (1 - torch.triu(torch.ones((1, len_s, len_s), device=seq.device), diagonal=1)).bool()
-        return subsequent_mask    
-    
+        return subsequent_mask
+
     def get_pad_mask(self, seq, pad_idx):
         return (seq != pad_idx).unsqueeze(-2)
-    
-    def forward(self, 
+
+    def forward(self,
                 spectrum_holder, # shape=(batchsize, 5, 150000)
                 intensity_inputs_forward, # shape = (seq_len, batchsize, 26, 40, 10)
                 intensity_inputs_backward,
@@ -417,12 +417,12 @@ class DeepNovoAttion(nn.Module):
         # logit_forward = self.linear(output_forward)
         # logit_backward = self.linear(output_forward)
         return output_forward, output_backward
-        
-    # def forward(self, 
+
+    # def forward(self,
     #             spectrum_holder, # shape=(batchsize, 5, 150000)
     #             intensity_inputs_forward, # shape = (seq_len, batchsize, 26, 40, 10)
     #             intensity_inputs_backward,
-    #             state_tuple, 
+    #             state_tuple,
     #             decoder_inputs_forward,  # shape=(seq_len - 1, batch_size)
     #             decoder_inputs_backward):
     #         decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
@@ -467,7 +467,7 @@ class DeepNovoAttion(nn.Module):
     #         # (batchsize , seq len, 26)
     #         #return logit_forward.view(-1, logit_forward.size(2)), logit_backward.view(-1, logit_backward.size(2))
     #         return logit_forward, logit_backward
-    
+
 class InferenceModelWrapper(object):
     def __init__(self, model : DeepNovoAttion):
         self.model = model
@@ -488,7 +488,7 @@ class InferenceModelWrapper(object):
             src_mask = self.model.get_src_mask(spectrum_cnn_outputs) # spectrum_cnn_outputs shape=(batchsize, 16, 256), src_mask shape=(batchsize, 16)
             decoder_inputs_trans = decoder_inputs.permute(1, 0) # decoder_inputs shape=(seq_len, batchsize), decode_inputs_trans shape=(batchsize, seq_len)
             # (1, 当前步序列)
-            trg_mask = self.model.get_subsequent_mask(decoder_inputs_trans) 
+            trg_mask = self.model.get_subsequent_mask(decoder_inputs_trans)
             output_transformer_forward = self.model.transformer( # (batchsize, seq len, ebmedding_size)
                 decoder_inputs_trans, trg_mask, spectrum_cnn_outputs, src_mask
             )
@@ -500,4 +500,3 @@ class InferenceModelWrapper(object):
             # (batchsize, embedding_size)
             return logit_forward
 
-    

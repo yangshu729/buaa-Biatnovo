@@ -18,7 +18,7 @@ def cal_folcal_loss(pred, gold, gamma=2):
     return torch.sum(per_entry_cross_ent, dim=-1)
 
 def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, batch_size):
-    # pred_forward.shape = (batchsize * (decoder_size - 1), num_classes) 
+    # pred_forward.shape = (batchsize * (decoder_size - 1), num_classes)
     zeros_forward = torch.zeros_like(gold_forward, dtype=gold_forward.dtype)
     ones_forward = torch.ones_like(gold_forward, dtype=gold_forward.dtype)
     # [batch_size, seq_len] ,如果 gold_forward 在某位置的值为 0（假设 0 为填充索引），则 gold_forward_weight 在该位置的值将为 0
@@ -33,8 +33,6 @@ def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward,
     loss_b = cal_folcal_loss(pred_backward, gold_backward) * gold_backward_weight
     total_backward_weight = torch.sum(gold_backward_weight) + 1e-12
     loss_b = torch.sum(loss_b) / total_backward_weight
-    loss_f = loss_f / batch_size
-    loss_b = loss_b / batch_size
     loss = (loss_b + loss_f) / 2.0
     return loss
 
@@ -81,7 +79,7 @@ def test_logit_single_2(decoder_input_forward,
     """TODO(nh2tran): docstring."""
 
     # length excluding FIRST_LABEL & LAST_LABEL
-  
+
     decoder_input_len = decoder_input_forward[1:].index(deepnovo_config.EOS_ID)
 
     # 去掉结束的符号
@@ -105,7 +103,7 @@ def test_logit_batch_2(decoder_inputs_forward,
                        output_logits_forward, # # (seq_len,batchsize, 26))
                        output_logits_backward):
     """TODO(nh2tran): docstring.
-   
+
     """
     batch_accuracy_AA = 0.0
     batch_len_AA = 0.0
@@ -151,4 +149,3 @@ def test_AA_match_1by1(decoder_input, output):
 
   return num_match
 
-  
