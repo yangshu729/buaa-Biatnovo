@@ -49,9 +49,9 @@ def validation(model, valid_loader, data_set_len) -> float:
     avg_accuracy_len = 0
     with torch.no_grad():
         for data in valid_loader:
-            (spectrum_holder, 
+            (spectrum_holder,
              batch_intensity_inputs_forward, # [batch_size, batch_max_seq_len, 26, 8 * 5, 10]
-             batch_intensity_inputs_backward, 
+             batch_intensity_inputs_backward,
              batch_decoder_inputs_forward,  # [batch_size, batch_max_seq_len]
              batch_decoder_inputs_backward) = data
             batch_size = spectrum_holder.size(0)
@@ -84,13 +84,13 @@ def validation(model, valid_loader, data_set_len) -> float:
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
             output_logits_backward_trans = output_logits_backward.reshape(-1, output_logits_backward.size(2))
-            output_logits_forward = output_logits_forward.transpose(0, 1) 
+            output_logits_forward = output_logits_forward.transpose(0, 1)
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
             loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batch_size)
             # gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             # gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             # loss = cal_dia_focal_loss(output_logits_forward, output_logits_backward, gold_forward, gold_backward, 0)
-             
+
             (batch_accuracy_AA,
              batch_len_AA,
              num_exact_match,
@@ -98,7 +98,7 @@ def validation(model, valid_loader, data_set_len) -> float:
                                     batch_decoder_inputs_backward,
                                     output_logits_forward,
                                     output_logits_backward)
-            avg_loss += loss 
+            avg_loss += loss * batch_size
 
             avg_accuracy_AA += batch_accuracy_AA
             avg_len_AA += batch_len_AA
@@ -109,7 +109,7 @@ def validation(model, valid_loader, data_set_len) -> float:
     avg_accuracy_AA /= avg_len_AA
     avg_accuracy_peptide /= data_set_len
     eval_ppx = math.exp(avg_loss) if avg_loss < 300 else float('inf')
-    
+
     return eval_ppx, avg_accuracy_AA, avg_accuracy_peptide
 
 def train():
@@ -131,7 +131,7 @@ def train():
                                                     shuffle=False,
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
-    
+
     # Get current date and time
     current_time = datetime.datetime.now()
 
@@ -154,9 +154,9 @@ def train():
     # )
     params = list(model.parameters())
     optimizer = optim.Adam(params)
-    
+
     checkpoint_path = os.path.join(deepnovo_config.train_dir, "translate.ckpt")
-    
+
     best_valid_loss = float("inf")
     # train loop
     best_epoch = None
@@ -172,9 +172,9 @@ def train():
             logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}")
             optimizer.zero_grad() # clear previous gradients
             # (batchsize, neighbor_size, 150000)
-            (spectrum_holder, 
+            (spectrum_holder,
              batch_intensity_inputs_forward, # [batch_size, batch_max_seq_len, 26, 8 * 5, 10]
-             batch_intensity_inputs_backward, 
+             batch_intensity_inputs_backward,
              batch_decoder_inputs_forward,  # [batch_size, batch_max_seq_len]
              batch_decoder_inputs_backward) = data
             batchsize = spectrum_holder.size(0)
@@ -205,7 +205,7 @@ def train():
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
             output_logits_backward_trans = output_logits_backward.reshape(-1, output_logits_backward.size(2))
-            output_logits_forward = output_logits_forward.transpose(0, 1) 
+            output_logits_forward = output_logits_forward.transpose(0, 1)
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
             loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batchsize)
             loss.backward()
@@ -218,14 +218,14 @@ def train():
             #             print("{}, gradient: {}".format(name, param.grad.mean()))
             new_loss += loss.item() / deepnovo_config.steps_per_validation
             #optimizer.step_and_update_lr()
-            
+
             if (i + 1) % deepnovo_config.steps_per_validation == 0:
                 duration = time.time() - start_time
                 step_time = duration / deepnovo_config.steps_per_validation
                 # loss are averaged over last  steps_per_validation
                 perplexity = math.exp(new_loss) if new_loss < 300 else float('inf')
                 new_loss = 0.0
-                
+
                 # accuracy is last batch
                 (batch_accuracy_AA,
                  batch_len_AA,
@@ -276,7 +276,7 @@ def train():
                     if no_update_count >= deepnovo_config.early_stop:
                         logger.info(f"early stop at epoch {epoch} step {i}")
                         break
-        
+
         if no_update_count >= deepnovo_config.early_stop:
             break
 
