@@ -1,6 +1,9 @@
 """A wrapper class for scheduled optimizer """
 
+import logging
 
+
+logger = logging.getLogger(__name__)
 class ScheduledOptim:
     """A simple wrapper class for learning rate scheduling"""
 
@@ -28,6 +31,8 @@ class ScheduledOptim:
     def _update_learning_rate(self):
         """Learning rate scheduling per step"""
         self.n_steps += 1
-        lr = self.lr_mul * self._get_lr_scale()
+        lr_scale = self._get_lr_scale()
+        lr = self.lr_mul * lr_scale
+        logger.info(f"step: {self.n_steps}, lr_scale:{lr_scale}, lr:{lr}")
         for param_group in self._optimizer.param_groups:
             param_group["lr"] = lr

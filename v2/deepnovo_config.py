@@ -186,7 +186,6 @@ print("l2_weight ", l2_weight)
 embedding_size = 256
 print("embedding_size ", embedding_size)
 
-
 dropout_keep = {
   "conv" : 0.75,
   "dense" : 0.5,
@@ -204,7 +203,7 @@ logger.info(f"dropout_keep: {dropout_keep}")
 print("dropout_keep ", dropout_keep)
 
 
-batch_size = 32
+batch_size = 128
 print("batch_size ", batch_size)
 logger.info(f"batchsize: {batch_size}")
 
@@ -286,7 +285,8 @@ col_feature_area = "feature area"
 cuda = True
 lr_mul = 0.5  # 0.5
 d_model = 256  # 256
-n_warmup_steps = 4000
+d_inner = 256
+n_warmup_steps = 1000
 num_epoch = 30
 steps_per_validation = 100
 early_stop = 49 + 10
@@ -295,6 +295,7 @@ early_stop = 49 + 10
 # transform parameters
 # ==============================================================================
 n_layers = 6
+n_head = 8
 num_units = 512
 lstm_layers = 2
 print(n_layers)

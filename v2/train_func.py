@@ -148,12 +148,10 @@ def train():
             file=log_file_handle, end="")
 
     model, start_epoch = create_model(deepnovo_config.dropout_keep, True)
-    # optimizer = ScheduledOptim(
-    #     optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
-    #                 deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
-    # )
-    params = list(model.parameters())
-    optimizer = optim.Adam(params)
+    optimizer = ScheduledOptim(
+        optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
+                    deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
+    )
 
     checkpoint_path = os.path.join(deepnovo_config.train_dir, "translate.ckpt")
 
@@ -209,15 +207,16 @@ def train():
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
             loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batchsize)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(params, deepnovo_config.max_gradient_norm)
-            optimizer.step()
+            #torch.nn.utils.clip_grad_norm_(params, deepnovo_config.max_gradient_norm)
+            
+            #optimizer.step()
             #gradient_norms.append(norm)
             # for name, param in model.named_parameters():
             #     if param.requires_grad:
             #         if param.grad is not None:
             #             print("{}, gradient: {}".format(name, param.grad.mean()))
             new_loss += loss.item() / deepnovo_config.steps_per_validation
-            #optimizer.step_and_update_lr()
+            optimizer.step_and_update_lr()
 
             if (i + 1) % deepnovo_config.steps_per_validation == 0:
                 duration = time.time() - start_time
