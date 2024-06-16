@@ -6,7 +6,7 @@ import torch.nn as nn
 import deepnovo_config
 import torch.nn.functional as F
 
-from transformer_decoder import TransformerDecoder
+from transformer_decoder import TokenEmbedding, TransformerDecoder, TransformerDecoderFormal
 from v2.custom_encoder import CustomConv3D, CustomLinear, CustomLinearNoReLU, constant_initializer, uniform_unit_scaling_initializer, variance_scaling_initializer
 
 torch.autograd.set_detect_anomaly(True)
@@ -182,19 +182,18 @@ class DeepNovoAttion(nn.Module):
         # self.lstm = nn.LSTM(deepnovo_config.embedding_size, deepnovo_config.num_units,
         #                             num_layers=deepnovo_config.lstm_layers,
         #                             batch_first=True)
-        self.embedding = nn.Embedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID)
+        self.word_emb = nn.Embedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID)
         self.d_k = deepnovo_config.embedding_size // deepnovo_config.n_head
         self.d_v = self.d_k
-        self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
-                                       deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0, dropout_keep=dropout_keep)
+        #self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
+        #                               deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0, dropout_keep=dropout_keep)
+        
+        self.transformer = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
         # 初始化transformer模型参数
         for p in self.transformer.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-        self.word_emb = nn.Embedding(
-            deepnovo_config.vocab_size, deepnovo_config.embedding_size, padding_idx=deepnovo_config.PAD_ID
-        )
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
         self.linear = nn.Linear(512, deepnovo_config.vocab_size)
         self.combine_feature_dense1 = CustomLinear(768, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
@@ -228,6 +227,15 @@ class DeepNovoAttion(nn.Module):
         # linear transform to logit [128, 26]
         return output
 
+    def generate_square_subsequent_mask(self, sz):
+        """
+        Args:
+            seq_len: int, the length of the sequence
+        """
+        mask = (torch.triu(torch.ones((sz, sz), device=device)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+        return mask
+
     def forward(self,
                 spectrum_holder, # shape=(batchsize, 5, 150000)
                 intensity_inputs_forward, # shape = (seq_len, batchsize, 26, 40, 10)
@@ -239,21 +247,16 @@ class DeepNovoAttion(nn.Module):
             decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
             decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
             # (batchsize, seq_len, embedding_size)
+            seq_len = decoder_inputs_forward.size(0)
             decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
             decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
-            src_mask = self.get_src_mask(spectrum_cnn_outputs)  # 全1,不mask
-            src_mask = src_mask.unsqueeze(1).to(device) # (batchsize, 1, 1, seq_len)
-            # (batchsize, seq_len,seq_len)
-            trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
-                decoder_inputs_forward_trans
-            )
-            # (batchsize, seq len, 256)
-            output_transformer_forward = self.transformer(
-                decoder_inputs_forward_trans, trg_mask, spectrum_cnn_outputs, src_mask
-            )
-            output_transformer_backward = self.transformer(
-                decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask
-            )
+            tgt_padding_mask = (decoder_inputs_forward_trans == 0)
+            tgt_mask=self.generate_square_subsequent_mask(seq_len)
+            # forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None)
+            output_transformer_forward = self.transformer(decoder_inputs_forward_trans, spectrum_cnn_outputs, tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+            tgt_padding_mask = (decoder_inputs_backward_trans == 0)
+            output_transformer_backward = self.transformer(decoder_inputs_backward_trans, spectrum_cnn_outputs,
+                                                           tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
 
             # part 2: ion cnn
             output_forward = []

@@ -4,32 +4,62 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import deepnovo_config
+
 logger = logging.getLogger(__name__)
 
 # most of the code is from https://nlp.seas.harvard.edu/annotated-transformer/
 
+# class PositionalEncoding(nn.Module):
+#     def __init__(self, d_hid, n_position=200):
+#         super(PositionalEncoding, self).__init__()
+
+#         # Not a parameter
+#         self.register_buffer("pos_table", self._get_sinusoid_encoding_table(n_position, d_hid))
+
+#     def _get_sinusoid_encoding_table(self, n_position, d_hid):
+#         """Sinusoid position encoding table"""
+#         # TODO: make it with torch instead of numpy
+
+#         def get_position_angle_vec(position):
+#             return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
+
+#         sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
+#         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
+#         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
+
+#         return torch.FloatTensor(sinusoid_table).unsqueeze(0)
+
+#     def forward(self, x):
+#         return x + self.pos_table[:, : x.size(1)].clone().detach()
+
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_hid, n_position=200):
+    def __init__(self,
+                 emb_size: int,
+                 dropout: float,
+                 maxlen: int = 5000):
         super(PositionalEncoding, self).__init__()
+        den = torch.exp(- torch.arange(0, emb_size, 2)* math.log(10000) / emb_size)
+        pos = torch.arange(0, maxlen).reshape(maxlen, 1)
+        pos_embedding = torch.zeros((maxlen, emb_size))
+        pos_embedding[:, 0::2] = torch.sin(pos * den)
+        pos_embedding[:, 1::2] = torch.cos(pos * den)
+        pos_embedding = pos_embedding.unsqueeze(-2)
 
-        # Not a parameter
-        self.register_buffer("pos_table", self._get_sinusoid_encoding_table(n_position, d_hid))
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer('pos_embedding', pos_embedding)
 
-    def _get_sinusoid_encoding_table(self, n_position, d_hid):
-        """Sinusoid position encoding table"""
-        # TODO: make it with torch instead of numpy
+    def forward(self, token_embedding: torch.Tensor):
+        return self.dropout(token_embedding + self.pos_embedding[:token_embedding.size(0), :])
 
-        def get_position_angle_vec(position):
-            return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
+class TokenEmbedding(nn.Module):
+    def __init__(self, vocab_size: int, emb_size):
+        super(TokenEmbedding, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_size, padding_idx=deepnovo_config.PAD_ID)
+        self.emb_size = emb_size
 
-        sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
-        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
-
-        return torch.FloatTensor(sinusoid_table).unsqueeze(0)
-
-    def forward(self, x):
-        return x + self.pos_table[:, : x.size(1)].clone().detach()
+    def forward(self, tokens: torch.Tensor):
+        return self.embedding(tokens.long()) * math.sqrt(self.emb_size)
 
 class ScaledDotProductAttention(nn.Module):
     """Scaled Dot-Product Attention"""
@@ -156,12 +186,31 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderFormal(nn.Module):
     def __init__(self, feature_size, num_decoder_layers, num_heads, hidden_dim, dropout=0.1):
         super(TransformerDecoderFormal, self).__init__()
-        self.pos_encoder = PositionalEncoding(feature_size, dropout)
+        self.tgt_tok_emb = TokenEmbedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size)
+        self.pos_encoder = PositionalEncoding(emb_size=feature_size, dropout=dropout)
         decoder_layer = nn.TransformerDecoderLayer(d_model=feature_size, nhead=num_heads, dim_feedforward=hidden_dim, dropout=dropout,
                                                    batch_first=True)
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
 
-    def forward(self, x, memory):
-        x = self.pos_encoder(x)
-        output = self.transformer_decoder(x, memory)
+    def forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None):
+        x = self.pos_encoder(self.tgt_tok_emb(x))
+        output = self.transformer_decoder(x, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
         return output
+
+class TransformerEncoderDecoder(nn.Module):
+    def __init__(self):
+        super(TransformerEncoderDecoder, self).__init__()
+        self.transformer = nn.Transformer(d_model=deepnovo_config.embedding_size,
+                                           nhead=deepnovo_config.n_head, 
+                                           num_encoder_layers=deepnovo_config.n_layers,
+                                           num_decoder_layers=deepnovo_config.n_layers,
+                                           dim_feedforward=deepnovo_config.d_inner,
+                                           dropout=deepnovo_config.dropout_keep["transformer"],)
+        self.tgt_tok_emb = TokenEmbedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size)
+        self.pos_encoder = PositionalEncoding(emb_size=deepnovo_config.embedding_size, dropout=deepnovo_config.dropout_keep["transformer"])
+    
+    def forward(self, src_emb, tgt, tgt_mask=None, tgt_key_padding_mask=None):
+        tgt_emb = self.pos_encoder(self.tgt_tok_emb(tgt))
+        output = self.transformer(src_emb, tgt_emb, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
+        return output
+
