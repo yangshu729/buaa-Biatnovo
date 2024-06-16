@@ -34,32 +34,19 @@ class SpectrumCNN2(nn.Module):
         self.conv2 = nn.Conv2d(4, 4, (1, 5), stride=(1, 1), padding=(0, 2))
         self.maxpool2 = nn.MaxPool2d(kernel_size=(1, 6), stride=(1, 4), padding=(0, 1))
         # Dropout层
-        self.dropout = nn.Dropout(p=deepnovo_config.dropout_keep["conv"])
+        self.dropout = nn.Dropout(p=(1 - deepnovo_config.dropout_keep["conv"]))
         # 计算全连接层输入尺寸
         self.reduced_size = deepnovo_config.MZ_SIZE // self.spectrum_resolution
         # 计算全连接层输入尺寸
         self.dense1_input_size = 1 * (self.reduced_size // 4) * 4
         # 创建全连接层
         self.dense1 = nn.Linear(self.dense1_input_size, deepnovo_config.num_units)
-        self.dropout2 = nn.Dropout(p=deepnovo_config.dropout_keep["dense"])
-        self.output = nn.Linear(deepnovo_config.num_units, 2 * deepnovo_config.num_units)
+        self.dropout2 = nn.Dropout(p=(1 -deepnovo_config.dropout_keep["dense"]))
+        #self.output = nn.Linear(deepnovo_config.num_units, 2 * deepnovo_config.num_units)
 
-    #e.g. for 2D image, num_spatial_dim=2
-    def get_padding_needed(input_spatial_shape, filter_shape, strides):
-        num_spatial_dim=len(input_spatial_shape)
-        padding_needed=[0]*num_spatial_dim
-
-        for i in range(num_spatial_dim):
-            if input_spatial_shape[i] % strides[i] == 0:
-                padding_needed[i] = max(filter_shape[i]-strides[i],0)
-            else:
-                padding_needed[i] = max(filter_shape[i]-(input_spatial_shape[i] % strides[i]),0)
-
-        return padding_needed
-    #example
-    #print(get_padding_needed(input_spatial_shape=[2000,125],filter_shape=[8,4],strides=[4,1]))
-    #[4,3]
-
+        # For the SAME padding, the output height and width are computed as:
+        #  out_height = ceil(float(in_height) / float(strides[1]))
+        #  out_width  = ceil(float(in_width) / float(strides[2]))
 
     def forward(self, spectrum_holder):
         # 改变张量形状以适应PyTorch的卷积层和池化层格式，这里维度顺序是(batch_size, channels, height, width)
@@ -91,11 +78,10 @@ class SpectrumCNN2(nn.Module):
         x = F.relu(self.dense1(x))
         # 应用Dropout
         x = self.dropout2(x)
-        x = F.relu(self.output(x))
-        x = x.unsqueeze(0)  # [1, batch_size, 2*num_units]
-        x = x.expand(deepnovo_config.lstm_layers, -1, -1)
-        h0, c0 = torch.split(x, deepnovo_config.num_units, dim=2)
-        return h0.contiguous(), c0.contiguous()
+        x = x.unsqueeze(0)  # [1, batch_size, num_units]
+        #x = x.expand(deepnovo_config.lstm_layers, -1, -1)
+        #h0, c0 = torch.split(x, deepnovo_config.num_units, dim=2)
+        return x
 
 class SpectrumCNN(nn.Module):
     def __init__(self, dropout_keep: dict):
@@ -191,8 +177,8 @@ class DeepNovoAttion(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(DeepNovoAttion, self).__init__()
         self.ion_cnn = IonCNN(dropout_keep=dropout_keep)
-        # self.spectrum_cnn = SpectrumCNN2()
-        self.spectrum_cnn = SpectrumCNN(dropout_keep)
+        self.spectrum_cnn = SpectrumCNN2()
+        #self.spectrum_cnn = SpectrumCNN(dropout_keep)
         # self.lstm = nn.LSTM(deepnovo_config.embedding_size, deepnovo_config.num_units,
         #                             num_layers=deepnovo_config.lstm_layers,
         #                             batch_first=True)
@@ -249,7 +235,7 @@ class DeepNovoAttion(nn.Module):
                 decoder_inputs_forward,  # shape=(seq_len - 1, batch_size)
                 decoder_inputs_backward):
             # part 1: spectrum cnn + transformer
-            spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder)
+            spectrum_cnn_outputs = self.spectrum_cnn(spectrum_holder).permute(1, 0, 2)  # (batchsize, 1, 256)
             decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
             decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
             # (batchsize, seq_len, embedding_size)

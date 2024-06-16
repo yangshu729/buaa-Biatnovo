@@ -153,3 +153,15 @@ class TransformerDecoder(nn.Module):
             )
         return self.norm(dec_output)
         
+class TransformerDecoderFormal(nn.Module):
+    def __init__(self, feature_size, num_decoder_layers, num_heads, hidden_dim, dropout=0.1):
+        super(TransformerDecoderFormal, self).__init__()
+        self.pos_encoder = PositionalEncoding(feature_size, dropout)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=feature_size, nhead=num_heads, dim_feedforward=hidden_dim, dropout=dropout,
+                                                   batch_first=True)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
+
+    def forward(self, x, memory):
+        x = self.pos_encoder(x)
+        output = self.transformer_decoder(x, memory)
+        return output

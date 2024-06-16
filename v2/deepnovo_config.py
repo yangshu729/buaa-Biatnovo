@@ -286,7 +286,7 @@ cuda = True
 lr_mul = 0.5  # 0.5
 d_model = 256  # 256
 d_inner = 256
-n_warmup_steps = 1000
+n_warmup_steps = 500
 num_epoch = 30
 steps_per_validation = 100
 early_stop = 49 + 10
@@ -296,7 +296,7 @@ early_stop = 49 + 10
 # ==============================================================================
 n_layers = 6
 n_head = 8
-num_units = 512
+num_units = 256  # use for spectrum_cnn
 lstm_layers = 2
 print(n_layers)
 print("aaaaaa")
