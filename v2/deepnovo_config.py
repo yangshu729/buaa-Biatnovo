@@ -50,30 +50,30 @@ GO_ID = 1
 EOS_ID = 2
 
 vocab_reverse = [
-    "A",
-    "R",
-    "N",
-    "N(Deamidation)",
-    "D",
+    "A", # 3
+    "R", # 4
+    "N", # 5
+    "N(Deamidation)", # 6
+    "D", # 7
     # ~ 'C',
-    "C(Carbamidomethylation)",
-    "E",
-    "Q",
-    "Q(Deamidation)",
-    "G",
-    "H",
-    "I",
-    "L",
-    "K",
-    "M",
-    "M(Oxidation)",
-    "F",
-    "P",
-    "S",
-    "T",
-    "W",
-    "Y",
-    "V",
+    "C(Carbamidomethylation)", # 8
+    "E", # 9
+    "Q", # 10
+    "Q(Deamidation)", # 11
+    "G", # 12
+    "H", # 13
+    "I", # 14
+    "L", # 15
+    "K", # 16
+    "M", # 17
+    "M(Oxidation)", # 18
+    "F", # 19
+    "P", # 20
+    "S", # 21
+    "T", # 22
+    "W", # 23
+    "Y", # 24
+    "V", # 25
 ]
 
 vocab_reverse = _START_VOCAB + vocab_reverse
@@ -207,7 +207,7 @@ batch_size = 128
 print("batch_size ", batch_size)
 logger.info(f"batchsize: {batch_size}")
 
-batch_size_predict = 32
+batch_size_predict = 128
 print("batch_size_predict: ", batch_size_predict)
 logger.info(f"batch_size_predict: {batch_size_predict}")
 
@@ -250,11 +250,12 @@ denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
 denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
-
+denovo_output_dir = "/root/v2/predict"
 # pre-built knapsack matrix
 knapsack_file = "knapsack.npy"
 
-denovo_output_file = denovo_input_feature_file + str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
+denovo_output_file = denovo_output_dir + '/' + denovo_input_feature_file.split('/')[-1] \
++ str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
 
 # ==============================================================================
 # feature file column format

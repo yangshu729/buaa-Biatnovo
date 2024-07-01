@@ -10,38 +10,64 @@ from v2.data_reader import *
 from v2 import deepnovo_config
 import logging
 
-from v2.model import DeepNovoAttion
+from v2.model import DeepNovoAttion, SpectrumCNN2
 from v2.test_accuracy import test_logit_batch_2
+
+forward_model_save_name = 'forward_deepnovo.pth'
+backward_model_save_name = 'backward_deepnovo.pth'
+spectrum_cnn_save_name = 'spectrum_cnn.pth'
+optimizer_save_name = 'optimizer.pth'
 
 logger = logging.getLogger(__name__)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def create_model(dropout_keep, training_mode):
+def create_model(dropout_keep):
     """TODO(nh2tran): docstring."""
     print("".join(["="] * 80))  # section-separating line
-    if os.path.exists(os.path.join(deepnovo_config.train_dir, "translate.ckpt")):
+    spectrum_cnn = SpectrumCNN2().to(device)
+    forward_deepnovo = DeepNovoAttion(dropout_keep)
+    backward_deepnovo = DeepNovoAttion(dropout_keep)
+    if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
+        assert os.path.exists(os.path.join(deepnovo_config.train_dir, backward_model_save_name))
         # load check_point
-        print("loading checkpoint()")
-        checkpoint = torch.load(os.path.join(deepnovo_config.train_dir, "translate.ckpt"))
-        model = DeepNovoAttion(dropout_keep)
-        model.load_state_dict(checkpoint["model"])
-        start_epoch = checkpoint["epoch"]
-        model.to(device)
+        print("loading pretrained model")
+        assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
+        spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name),
+                                                    map_location=device))
+        forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name),
+                                                    map_location=device))
+        backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name),
+                                                     map_location=device))
         # model = torch.nn.DataParallel(model, device_ids=device_ids)
     else:
         print("create_model()")
-        model = DeepNovoAttion(dropout_keep)
-        model.to(device)
-        # gptmodel = load
-        # model.decoder = gptmodel.decoder
-        # model.tgr_word_project = gptmodel.tgtrwork_projection
-        start_epoch = -1
-        # model = torch.nn.DataParallel(model, device_ids=device_ids)
-    return model, start_epoch
+    backward_deepnovo.transformer.tgt_tok_emb.embedding.weight = forward_deepnovo.transformer.tgt_tok_emb.embedding.weight
+    forward_deepnovo = forward_deepnovo.to(device)
+    backward_deepnovo = backward_deepnovo.to(device)
+    
+    return forward_deepnovo, backward_deepnovo, spectrum_cnn
 
 
-def validation(model, valid_loader, data_set_len) -> float:
+def load_optimizer(optimizer: optim.Optimizer):
+    if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
+        optimizer.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, optimizer_save_name)))
+        return optimizer
+    return optimizer
+
+
+def save_model(forward_deepnovo, backward_deepnovo, spectrum_cnn, optimizer):
+    torch.save(forward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                           forward_model_save_name))
+    torch.save(backward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                            backward_model_save_name))
+    
+    torch.save(spectrum_cnn.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                       spectrum_cnn_save_name))
+    torch.save(optimizer.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                    optimizer_save_name))
+
+def validation(sepctrum_cnn, forward_deepnovo, backward_deepnovo, valid_loader, data_set_len) -> float:
     avg_accuracy_AA = 0
     avg_accuracy_peptide = 0
     avg_loss = 0
@@ -58,6 +84,7 @@ def validation(model, valid_loader, data_set_len) -> float:
 
             # move to device
             spectrum_holder = spectrum_holder.to(device)
+            spectrum_cnn_outputs = sepctrum_cnn(spectrum_holder).permute(1, 0, 2)  # (batchsize, 1, 256)
             batch_intensity_inputs_forward = batch_intensity_inputs_forward.to(device)
             batch_intensity_inputs_backward = batch_intensity_inputs_backward.to(device)
             batch_decoder_inputs_forward = batch_decoder_inputs_forward.to(device)
@@ -70,15 +97,18 @@ def validation(model, valid_loader, data_set_len) -> float:
             batch_decoder_inputs_forward = batch_decoder_inputs_forward.permute(1, 0)
             batch_decoder_inputs_backward = batch_decoder_inputs_backward.permute(1, 0)
 
-            # (batchsize x seq_len, 26))
-            output_logits_forward, output_logits_backward = model(
-                spectrum_holder,  # (batchsize, neighbor_size, 150000)
-                batch_intensity_inputs_forward, # (seq_len, batchsize, 26, 40, 10)
-                batch_intensity_inputs_backward, # (seq_len, batchsize, 26, 40, 10)
-                # batch_decoder_inputs_forward eg: [[1, 3, 5, 6, ..., 2]]
-                batch_decoder_inputs_forward[:- 1], # (seq_len - 1, batchsize)
-                batch_decoder_inputs_backward[:- 1],
-            )
+            output_logits_forward = forward_deepnovo(spectrum_cnn_outputs, batch_intensity_inputs_forward, batch_decoder_inputs_forward[:-1])
+            output_logits_backward = backward_deepnovo(spectrum_cnn_outputs, batch_intensity_inputs_backward, batch_decoder_inputs_backward[:-1])
+
+            # # (batchsize x seq_len, 26))
+            # output_logits_forward, output_logits_backward = model(
+            #     spectrum_holder,  # (batchsize, neighbor_size, 150000)
+            #     batch_intensity_inputs_forward, # (seq_len, batchsize, 26, 40, 10)
+            #     batch_intensity_inputs_backward, # (seq_len, batchsize, 26, 40, 10)
+            #     # batch_decoder_inputs_forward eg: [[1, 3, 5, 6, ..., 2]]
+            #     batch_decoder_inputs_forward[:- 1], # (seq_len - 1, batchsize)
+            #     batch_decoder_inputs_backward[:- 1],
+            # )
 
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
@@ -147,13 +177,14 @@ def train():
         print("epoch\tstep\tperplexity\tlast_accuracy_AA\tlast_accuracy_peptide\tvalid_perplexity\tvalid_accuracy_AA\tvalid_accuracy_peptide\n",
             file=log_file_handle, end="")
 
-    model, start_epoch = create_model(deepnovo_config.dropout_keep, True)
+    forward_deepnovo, backward_deepnovo, spectrum_cnn = create_model(deepnovo_config.dropout_keep)
+    all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
+                    list(spectrum_cnn.parameters())
     optimizer = ScheduledOptim(
-        optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
+        optim.Adam(all_params, betas=(0.9, 0.98), eps=1e-09),
                     deepnovo_config.lr_mul, deepnovo_config.d_model, deepnovo_config.n_warmup_steps
     )
-
-    checkpoint_path = os.path.join(deepnovo_config.train_dir, "translate.ckpt")
+    optimizer = load_optimizer(optimizer)
 
     best_valid_loss = float("inf")
     # train loop
@@ -191,14 +222,18 @@ def train():
             batch_decoder_inputs_forward = batch_decoder_inputs_forward.permute(1, 0)
             batch_decoder_inputs_backward = batch_decoder_inputs_backward.permute(1, 0)
 
-            ## (batchsize , seq len, 26)
-            output_logits_forward, output_logits_backward = model(
-                spectrum_holder,  # (batchsize, neighbor_size, 150000)
-                batch_intensity_inputs_forward, # (seq_len, batchsize, 26, 40, 10)
-                batch_intensity_inputs_backward, # (seq_len, batchsize, 26, 40, 10)
-                batch_decoder_inputs_forward[: -1], # (seq_len, batchsize)
-                batch_decoder_inputs_backward[: -1],
-            )
+            spectrum_cnn_outputs = spectrum_cnn(spectrum_holder).permute(1, 0, 2)  # (batchsize, 1, 256)
+            output_logits_forward = forward_deepnovo(spectrum_cnn_outputs, batch_intensity_inputs_forward, batch_decoder_inputs_forward[: -1])
+            output_logits_backward = backward_deepnovo(spectrum_cnn_outputs, batch_intensity_inputs_backward, batch_decoder_inputs_backward[: -1])
+
+            # ## (batchsize , seq len, 26)
+            # output_logits_forward, output_logits_backward = model(
+            #     spectrum_holder,  # (batchsize, neighbor_size, 150000)
+            #     batch_intensity_inputs_forward, # (seq_len, batchsize, 26, 40, 10)
+            #     batch_intensity_inputs_backward, # (seq_len, batchsize, 26, 40, 10)
+            #     batch_decoder_inputs_forward[: -1], # (seq_len, batchsize)
+            #     batch_decoder_inputs_backward[: -1],
+            # )
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
@@ -207,7 +242,7 @@ def train():
             output_logits_backward = output_logits_backward.transpose(0, 1) # (seq_len, batchsize, 26)
             loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batchsize)
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(params, deepnovo_config.max_gradient_norm)
+            # torch.nn.utils.clip_grad_norm_(all_params, deepnovo_config.max_gradient_norm)
             
             #optimizer.step()
             #gradient_norms.append(norm)
@@ -248,9 +283,12 @@ def train():
                         file=log_file_handle,
                         end="")
                 # validation
-                model.eval()
+                forward_deepnovo.eval()
+                backward_deepnovo.eval()
+                spectrum_cnn.eval()
                 validaion_begin_time = time.time()
-                validation_perplexity, accuracy_AA, accuracy_peptide  = validation(model, valid_data_loader, len(valid_set))
+                validation_perplexity, accuracy_AA, accuracy_peptide  = validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, 
+                                                                                   valid_data_loader, len(valid_set))
                 validation_duration = time.time() - validaion_begin_time
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity}\tstep time: {step_time} "
@@ -260,14 +298,12 @@ def train():
                     print("%.4f \t %.4f \t %.4f\n" % (validation_perplexity, accuracy_AA, accuracy_peptide),
                     file=log_file_handle,
                     end="")
-                model.train()
                 start_time = time.time()
                 if validation_perplexity < best_valid_loss:
                     no_update_count = 0
                     best_valid_loss = validation_perplexity
                     logger.info(f"best valid loss achieved at epoch {epoch} step {i}")
-                    checkpoint = {"epoch": epoch,  "model": model.state_dict()}
-                    torch.save(checkpoint, checkpoint_path)
+                    save_model(forward_deepnovo, backward_deepnovo, spectrum_cnn, optimizer)
                     best_epoch = epoch
                     best_step = i
                 else:
@@ -275,6 +311,12 @@ def train():
                     if no_update_count >= deepnovo_config.early_stop:
                         logger.info(f"early stop at epoch {epoch} step {i}")
                         break
+
+                # back to train model
+                spectrum_cnn.train()
+                forward_deepnovo.train()
+                backward_deepnovo.train()
+
 
         if no_update_count >= deepnovo_config.early_stop:
             break

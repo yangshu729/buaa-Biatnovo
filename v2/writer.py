@@ -29,8 +29,8 @@ class DenovoWriter(object):
                        "scan_list_original",
                        "predicted_score_max"]
         header_row = "\t".join(header_list)
-        with open(self.log_file, 'a') as output_handle:
-            print(header_row, file=output_handle, end='\n')
+        with open(self.log_file, 'a') as self.output_handle:
+            print(header_row, file=self.output_handle, end='\n')
 
     def close(self):
         self.output_handle.close()

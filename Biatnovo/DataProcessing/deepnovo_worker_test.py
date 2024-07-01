@@ -146,8 +146,6 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
-                if (feature_id == "F1:6312") : 
-                    print(predicted["feature_id"])
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]

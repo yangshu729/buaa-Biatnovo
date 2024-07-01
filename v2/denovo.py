@@ -8,10 +8,10 @@ from typing import List
 import numpy as np
 import torch
 
+from model import InferenceModelWrapper, device
 from v2 import deepnovo_config
 from v2.data_reader import BatchDenovoData, DIAFeature
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
-from v2.model import InferenceModelWrapper, device
 from v2.writer import BeamSearchedSequence, DenovoWriter
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ class DeepNovoAttionDenovo():
 
         # step 1: extract original spectrum
         spectrum_cnn_outputs = model_wrapper.init_spectrum_cnn(batch_denovo_data.spectrum_holder) # (batchszie, 16, 256)
-        
+
         # initialize activate search list
         active_search_list = []
         for feature_index in range(num_features):  # batchsize
@@ -233,10 +233,10 @@ class DeepNovoAttionDenovo():
                     score_sum = path.score_sum
                     aa_seq_mass = path.aa_seq_mass
                     score_list = path.score_list
-                    
+
                     if aa_seq_mass > precursor_mass + peak_mass_tolerance:
                         # 终止条件：aa_seq_mass超过了precursor_mass+peak_mass_tolerance
-                        continue    
+                        continue
 
                     if aa_id == last_label:
                         # 终止条件：最后一个aa是EOS
@@ -285,11 +285,14 @@ class DeepNovoAttionDenovo():
             block_decoder_inputs = torch.from_numpy(np.array(block_aa_id_list).transpose(1, 0)).to(device)
             block_spectrum_cnn_outputs = torch.cat(block_spectrum_cnn_outputs, dim=0)
 
-            current_log_prob = model_wrapper.inference(  
+            current_log_prob = model_wrapper.inference(
                 block_spectrum_cnn_outputs,
                 block_intensity_input, # (batchsize * beamsize, 26)
                 block_decoder_inputs,  # (seq_len, batchsize)
+                direction_id=direction_cint_map[direction]
             )
+            Logsoftmax = torch.nn.LogSoftmax(dim=1)
+            current_log_prob = Logsoftmax(current_log_prob)
             # transfer log_prob back to cpu
             current_log_prob = current_log_prob.cpu().numpy()
 
@@ -310,7 +313,7 @@ class DeepNovoAttionDenovo():
                         else:
                             new_score_list = block_score_list[index] + [0.0]
                             new_score_sum = block_score_sum[index] + 0.0
-                       
+
                         new_path = SearchPath(
                             aa_id_list=block_aa_id_list[index] + [aa_id],
                             aa_seq_mass=block_aa_seq_mass[index] + deepnovo_config.mass_ID[aa_id],
@@ -336,7 +339,7 @@ class DeepNovoAttionDenovo():
 
         return top_path_batch
 
-    
+
     def search_denovo(self, model_wrapper: InferenceModelWrapper,
                       beam_search_reader: torch.utils.data.DataLoader,
                       denovo_writer : DenovoWriter) -> List[DenovoResult]:
