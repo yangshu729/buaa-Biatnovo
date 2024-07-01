@@ -289,7 +289,10 @@ class DeepNovoAttionDenovo():
                 block_spectrum_cnn_outputs,
                 block_intensity_input, # (batchsize * beamsize, 26)
                 block_decoder_inputs,  # (seq_len, batchsize)
+                direction=direction
             )
+            Logsoftmax = torch.nn.LogSoftmax(dim=1)
+            current_log_prob = Logsoftmax(current_log_prob)
             # transfer log_prob back to cpu
             current_log_prob = current_log_prob.cpu().numpy()
 
