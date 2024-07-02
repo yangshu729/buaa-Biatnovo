@@ -178,6 +178,7 @@ def train():
             file=log_file_handle, end="")
 
     forward_deepnovo, backward_deepnovo, spectrum_cnn = create_model(deepnovo_config.dropout_keep)
+
     all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
                     list(spectrum_cnn.parameters())
     optimizer = ScheduledOptim(

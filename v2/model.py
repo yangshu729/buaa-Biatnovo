@@ -6,6 +6,7 @@ import torch.nn as nn
 import deepnovo_config
 import torch.nn.functional as F
 
+from denovo import Direction
 from transformer_decoder import TokenEmbedding, TransformerDecoder, TransformerDecoderFormal
 from v2.custom_encoder import CustomConv3D, CustomLinear, CustomLinearNoReLU, constant_initializer, uniform_unit_scaling_initializer, variance_scaling_initializer
 
@@ -242,33 +243,35 @@ class DeepNovoAttion(nn.Module):
                 decoder_inputs,  # shape=(seq_len - 1, batch_size)
             ):
 
-            decoder_inputs_emb_ion = self.word_emb(decoder_inputs)
-            # (batchsize, seq_len, embedding_size)
-            seq_len = decoder_inputs.size(0)
-            decoder_inputs_trans = decoder_inputs.permute(1, 0)
-            tgt_padding_mask = (decoder_inputs_trans == 0)
-            tgt_mask=self.generate_square_subsequent_mask(seq_len)
-            # forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None)
-            output_transformer = self.transformer(decoder_inputs_trans, spectrum_cnn_outputs,
-                                                  tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
-            # part 2: ion cnn
-            ion_outputs = []
-            for i, AA_2 in enumerate(decoder_inputs_emb_ion):
-                input_intensity = torch.tensor(intensity_inputs[i]).cuda()
-                ion_cnn_output, output_logit = self.ion_cnn(input_intensity)
-                ion_cnn_output = ion_cnn_output.unsqueeze_(0)
-                ion_outputs.append(ion_cnn_output)
-            ion_outputs = torch.cat(ion_outputs, dim=0).permute(1, 0, 2)
+        decoder_inputs_emb_ion = self.word_emb(decoder_inputs)
+        # (batchsize, seq_len, embedding_size)
+        seq_len = decoder_inputs.size(0)
+        decoder_inputs_trans = decoder_inputs.permute(1, 0)
+        tgt_padding_mask = (decoder_inputs_trans == 0)
+        tgt_mask=self.generate_square_subsequent_mask(seq_len)
+        # forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None)
 
-            # part3. combine spectrum_cnn + transformer + ion_cnn
-             # (batchsize, seq len, 1024)
-            logit = self._combine_feature(output_transformer, ion_outputs)
+        output_transformer = self.transformer(decoder_inputs_trans, spectrum_cnn_outputs, 
+                                                tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        # part 2: ion cnn
+        ion_outputs = []
+        for i, AA_2 in enumerate(decoder_inputs_emb_ion):
+            input_intensity = torch.tensor(intensity_inputs[i]).cuda()
+            ion_cnn_output, output_logit = self.ion_cnn(input_intensity)
+            ion_cnn_output = ion_cnn_output.unsqueeze_(0)
+            ion_outputs.append(ion_cnn_output)
+        ion_outputs = torch.cat(ion_outputs, dim=0).permute(1, 0, 2)
 
-            return logit
+        # part3. combine spectrum_cnn + transformer + ion_cnn
+
+        logit = self._combine_feature(output_transformer, ion_outputs)
+
+        return logit
 
 
 
 class InferenceModelWrapper(object):
+
     def __init__(self, forward_model : DeepNovoAttion, backward_model : DeepNovoAttion, spectrum_cnn : SpectrumCNN2):
         self.forward_model = forward_model
         self.backward_model = backward_model
@@ -285,7 +288,7 @@ class InferenceModelWrapper(object):
 
     def inference(self, spectrum_cnn_outputs, candidate_intensity, decoder_inputs, direction_id):
         if direction_id == 0:
-                self.model = self.forward_model
+            self.model = self.forward_model
         elif direction_id == 1:
             self.model = self.backward_model
         else:
@@ -312,3 +315,4 @@ class InferenceModelWrapper(object):
             logit_forward = self.model.combine_feature_dense2(logit_forward)
             # (batchsize, embedding_size)
             return logit_forward
+

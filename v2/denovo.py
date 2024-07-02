@@ -291,6 +291,7 @@ class DeepNovoAttionDenovo():
                 block_decoder_inputs,  # (seq_len, batchsize)
                 direction_id=direction_cint_map[direction]
             )
+            
             Logsoftmax = torch.nn.LogSoftmax(dim=1)
             current_log_prob = Logsoftmax(current_log_prob)
             # transfer log_prob back to cpu
