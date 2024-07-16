@@ -6,7 +6,6 @@ import torch.nn as nn
 import deepnovo_config
 import torch.nn.functional as F
 
-from denovo import Direction
 from transformer_decoder import TokenEmbedding, TransformerDecoder, TransformerDecoderFormal
 from v2.custom_encoder import CustomConv3D, CustomLinear, CustomLinearNoReLU, constant_initializer, uniform_unit_scaling_initializer, variance_scaling_initializer
 
