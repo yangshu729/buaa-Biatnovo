@@ -7,7 +7,7 @@ export CUDA_VISIBLE_DEVICES=5
 
 # Define the Python script and its arguments
 PYTHON_SCRIPT="v2/main.py"
-ARGS="--train --train_dir /root/v2/transformer_apid_decoder_two_model"
+ARGS="--train --train_dir /root/v2/transformer_api_no_early_stop"
 
 # Function to run the Python script
 run_script() {

@@ -300,13 +300,14 @@ def train():
                     file=log_file_handle,
                     end="")
                 start_time = time.time()
-                if validation_perplexity < best_valid_loss:
-                    no_update_count = 0
-                    best_valid_loss = validation_perplexity
-                    logger.info(f"best valid loss achieved at epoch {epoch} step {i}")
+                if validation_perplexity < 100:
+                    if validation_perplexity < best_valid_loss:
+                        no_update_count = 0
+                        best_valid_loss = validation_perplexity
+                        logger.info(f"best valid loss achieved at epoch {epoch} step {i}")
+                        best_epoch = epoch
+                        best_step = i
                     save_model(forward_deepnovo, backward_deepnovo, spectrum_cnn, optimizer)
-                    best_epoch = epoch
-                    best_step = i
                 else:
                     no_update_count += 1
                     if no_update_count >= deepnovo_config.early_stop:

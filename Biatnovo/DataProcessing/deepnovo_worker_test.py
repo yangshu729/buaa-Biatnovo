@@ -484,8 +484,6 @@ class WorkerTest(object):
                 line_split = re.split("\t|\n", line)
                 predicted = {}
                 predicted["feature_id"] = line_split[col_feature_id]
-                if (predicted["feature_id"] == "F1:6312") : 
-                    print(predicted["feature_id"])
                 predicted["feature_area"] = float(line_split[col_feature_area])
                 predicted["scan_list_middle"] = line_split[col_scan_list_middle]
                 predicted["scan_list_original"] = line_split[col_scan_list_original]
