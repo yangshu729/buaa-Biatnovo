@@ -8,12 +8,14 @@ from typing import List
 import numpy as np
 import torch
 
+from Biatnovo.test_true_feeding import test_logit_batch_2_score
 from model import InferenceModelWrapper, device
 from v2 import deepnovo_config
-from v2.data_reader import BatchDenovoData, DIAFeature
+from v2.data_reader import BatchDenovoData, DIAFeature, DenovoData, TrainData, collate_func
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
 from v2.writer import BeamSearchedSequence, DenovoWriter
 logger = logging.getLogger(__name__)
+
 
 class Direction(Enum):
     forward = 1
@@ -200,6 +202,7 @@ class DeepNovoAttionDenovo():
             active_search_list.append(search_entry)
 
         # repeat STEP 2, 3, 4 until the active_search_list is empty.
+        current_step = 0
         while True:
             # STEP 2: gather data from active search entries and group into blocks.
 
@@ -303,6 +306,8 @@ class DeepNovoAttionDenovo():
             #     with knapsack dynamic programming and beam search.
             block_index = 0
             for entry_index, search_entry in enumerate(active_search_list):
+                if current_step == 7:
+                    print("debug")
                 new_path_list = []
                 direction = search_entry.current_path_list[0].direction
                 for index in range(block_index, block_index + search_entry_size[entry_index]):
@@ -335,6 +340,8 @@ class DeepNovoAttionDenovo():
             # remove search entry with no path
             active_search_list = [x for x in active_search_list if x.current_path_list]  # batchsize
 
+            current_step += 1
+
             if not active_search_list:
                 break
 
@@ -356,6 +363,33 @@ class DeepNovoAttionDenovo():
 
         return predicted_denovo_list
 
+    # 返回的结果包含预测本身
+    def concate_more(self, forward_sequence, backward_sequence, precursor_mass):
+        forward_sequence = [deepnovo_config.vocab_reverse[aa_id] for
+                                           aa_id in forward_sequence]
+        backward_sequence = [deepnovo_config.vocab_reverse[aa_id] for aa_id in backward_sequence]
+        result = []
+        begin_mass = precursor_mass - 22
+        end_mass = precursor_mass - 18
+        i = 0
+        while i < len(forward_sequence):
+            i += 1
+            str_tmp = forward_sequence[:i]
+            j = 0
+            while j < len(backward_sequence) - 1:
+                str_tmp1 = backward_sequence[j:]
+                j += 1
+                str_tmp2 = str_tmp + str_tmp1
+                peptide_ids = [deepnovo_config.vocab[x] for x in str_tmp2]
+                mass_tmp = sum(deepnovo_config.mass_ID[x] for x in peptide_ids)
+                if mass_tmp < end_mass and mass_tmp > begin_mass:
+                    result.append(str_tmp2)
+        result.append(forward_sequence)
+        result.append(backward_sequence)
+        result = list(set([tuple(t) for t in result]))
+        return result
+
+
     def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
         start_time = time.time()
         feature_batch_size = len(batch_denovo_data.dia_features)
@@ -371,4 +405,162 @@ class DeepNovoAttionDenovo():
         logger.info("beam_search(): batch time {}s".format(test_time))
         return predicted_batch
 
+
+    # def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
+    #     start_time = time.time()
+    #     feature_batch_size = len(batch_denovo_data.dia_features)
+    #     start_points_tuple = self._get_start_point(batch_denovo_data)
+
+    #     top_candidate_forward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[0])
+    #     top_forward_denovo_result = self._select_path(batch_denovo_data, top_candidate_forward_batch)
+    #     top_candidate_backward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[1])
+    #     top_backward_denovo_result = self._select_path(batch_denovo_data, top_candidate_backward_batch)
+    #     denovo_data_list = self._denovo_decollate_func(batch_denovo_data)
+    #     sepctrum_index = []
+    #     train_data_list = []
+    #     predicted_batch = []
+        
+    #     for feature_index in range(feature_batch_size):
+    #         forward_sequence = top_forward_denovo_result[feature_index].best_beam_search_sequence.sequence
+    #         backward_sequence = top_backward_denovo_result[feature_index].best_beam_search_sequence.sequence
+    #         precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
+    #         if len(forward_sequence) > 0 and len(backward_sequence) > 0:
+    #             concate_result = self.concate_more(forward_sequence, backward_sequence, precursor_mass)
+    #         elif len(forward_sequence) > 0:
+    #             concate_result = forward_sequence
+    #         else:  #F2:1241
+    #             logger.info("only backward_sequence")
+    #             logger.info(denovo_data_list[feature_index].dia_feature.feature_id)
+    #             concate_result = backward_sequence
+    #         for sequence in concate_result:
+    #             train_data = self._convert2training_data(denovo_data_list[feature_index], sequence)
+    #             train_data_list.append(train_data)
+    #             sepctrum_index.append(feature_index)
+            
+    #     bi_score = self.test_accuracy_score_v2(train_data_list, model_wrapper)
+    #     result_score = [[] for x in range(feature_batch_size)]
+    #     index = 0
+    #     for x in bi_score:
+    #         result_score[sepctrum_index[index]].append(x)
+    #         index += 1
+    
+    #     for feature_index in range(feature_batch_size):
+    #         score_sum_list = []
+    #         for result in result_score[feature_index]:
+    #             score_sum_list.append(result["score_sum"])
+    #         if len(score_sum_list) > 0:
+    #             tmp_i = score_sum_list.index(max(score_sum_list))
+    #             best_beam_search_sequence = BeamSearchedSequence(sequence=result_score[feature_index][tmp_i]["aaid_sequence"],
+    #                                  position_score=result_score[feature_index][tmp_i]["position_score"],
+    #                                  score=score_sum_list[tmp_i])
+    #             denovo_result = DenovoResult(
+    #                 dia_feature=batch_denovo_data.dia_features[feature_index],
+    #                 best_beam_search_sequence=best_beam_search_sequence
+    #             )
+    #             predicted_batch.append(denovo_result)
+
+    #     test_time = time.time() - start_time
+    #     logger.info("beam_search(): batch time {}s".format(test_time))
+    #     return predicted_batch
+    
+    def test_accuracy_score_v2(self, train_data_list: List[TrainData], model_wrapper: InferenceModelWrapper):
+        (
+            spectrum_holder,
+            batch_intensity_inputs_forward,
+            batch_intensity_inputs_backward,
+            batch_decoder_inputs_forward,
+            batch_decoder_inputs_backward
+        ) = collate_func(train_data_list)
+        batchsize = spectrum_holder.size(0)
+
+        # move to device
+        spectrum_holder = spectrum_holder.to(device)
+        batch_intensity_inputs_forward = batch_intensity_inputs_forward.to(device)
+        batch_intensity_inputs_backward = batch_intensity_inputs_backward.to(device)
+        batch_decoder_inputs_forward = batch_decoder_inputs_forward.to(device)
+        batch_decoder_inputs_backward = batch_decoder_inputs_backward.to(device)
+        # (seq_len, batchsize, 26, 40, 10)
+        batch_intensity_inputs_forward = batch_intensity_inputs_forward.permute(1, 0, 2, 3, 4)
+        batch_intensity_inputs_backward = batch_intensity_inputs_backward.permute(1, 0, 2, 3, 4)
+        # (seq_len, batchsize)
+        batch_decoder_inputs_forward = batch_decoder_inputs_forward.permute(1, 0)
+        batch_decoder_inputs_backward = batch_decoder_inputs_backward.permute(1, 0)
+
+        spectrum_cnn_outputs = model_wrapper.spectrum_cnn(spectrum_holder).permute(1, 0, 2)  # (batchsize, 1, 256)
+        output_logits_forward = model_wrapper.forward_model(spectrum_cnn_outputs, batch_intensity_inputs_forward, batch_decoder_inputs_forward[: -1])
+        output_logits_backward = model_wrapper.backward_model(spectrum_cnn_outputs, batch_intensity_inputs_backward, batch_decoder_inputs_backward[: -1])
+        output_logits_forward = output_logits_forward.view(-1, output_logits_forward.size(-1))
+        output_logits_backward = output_logits_backward.view(-1, output_logits_backward.size(-1))
+       
+        output_batch = test_logit_batch_2_score(
+            batch_decoder_inputs_forward, # (seq_len, batchsize)
+            batch_decoder_inputs_backward,
+            output_logits_forward, # (seq_len - 1, batchsize, 26)
+            output_logits_backward,
+        )
+        ### output = {}
+        # output["dec_string"] = dec_string
+        # output["score_sum"] = score_sum
+        # output["position_score"] = position_score
+        # output["aaid_sequence"] = aaid_sequence
+
+        bi_score = []
+        for output in output_batch:
+            bi_score.append(output)
+        return bi_score
+
+
+    def _denovo_decollate_func(self, batch_data: BatchDenovoData) -> List[DenovoData]:
+        # Convert the tensor back to numpy if necessary
+        spectrum_holder = batch_data.spectrum_holder.numpy()
+        
+        # Assume that the length of spectrum_holder equals the length of the original data list
+        data_list = []
+        for i in range(len(spectrum_holder)):
+            # Create each DenovoData object from the batch
+            denovo_data = DenovoData(
+                spectrum_holder=spectrum_holder[i],
+                spectrum_original_forward=batch_data.spectrum_original_forward[i],
+                spectrum_original_backward=batch_data.spectrum_original_backward[i],
+                dia_feature=batch_data.dia_features[i]
+            )
+            data_list.append(denovo_data)
+        
+        return data_list
+
+    def _convert2training_data(self, denovo_data : DenovoData, sequence):
+        # parse peptide AA sequence to list of ids
+        if not sequence:
+            logger.info("empty sequence")
+        print(sequence)
+        peptide_ids = [deepnovo_config.vocab[x] for x in sequence]
+        peptide_ids_forward = peptide_ids[:]
+        peptide_ids_forward.insert(0, deepnovo_config.GO_ID)
+        peptide_ids_forward.append(deepnovo_config.EOS_ID)
+        peptide_ids_backward = peptide_ids[::-1]
+        peptide_ids_backward.insert(0, deepnovo_config.EOS_ID)
+        peptide_ids_backward.append(deepnovo_config.GO_ID)
+        prefix_mass = 0.0
+        candidate_intensity_forward = []
+        spectrum_original_forward = denovo_data.spectrum_original_forward
+        spectrum_original_backward = denovo_data.spectrum_original_backward
+
+        for i, id in enumerate(peptide_ids_forward[:-1]):
+            prefix_mass += deepnovo_config.mass_ID[id]
+            candidate_intensity = get_candidate_intensity(spectrum_original_forward,
+                                                          denovo_data.dia_feature.precursor_mass, prefix_mass, 0)
+            candidate_intensity_forward.append(candidate_intensity)
+
+        suffix_mass = 0.0
+        candidate_intensity_backward=[]
+        for i, id in enumerate(peptide_ids_backward[:-1]):
+            suffix_mass += deepnovo_config.mass_ID[id]
+            candidate_intensity = get_candidate_intensity(spectrum_original_backward,
+                                                          denovo_data.dia_feature.precursor_mass, suffix_mass, 1)
+            candidate_intensity_backward.append(candidate_intensity)
+        return TrainData(denovo_data.spectrum_holder,
+                         peptide_ids_forward,
+                         peptide_ids_backward,
+                         candidate_intensity_forward,
+                         candidate_intensity_backward)
 

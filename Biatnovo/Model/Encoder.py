@@ -99,6 +99,7 @@ class Ion_cnn(nn.Module):
             * 64,
         )
         # (batchsize, 512)
+        output = self.fc(output)
         output = F.dropout(output, p=dropout_keep["dense"])
         return output
 

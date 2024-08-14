@@ -189,7 +189,7 @@ print("embedding_size ", embedding_size)
 dropout_keep = {
   "conv" : 0.75,
   "dense" : 0.5,
-  "transformer": 0.2
+  "transformer": 0.1
 }
 
 # dropout_keep = {
@@ -207,7 +207,7 @@ batch_size = 128
 print("batch_size ", batch_size)
 logger.info(f"batchsize: {batch_size}")
 
-batch_size_predict = 128
+batch_size_predict = 4
 print("batch_size_predict: ", batch_size_predict)
 logger.info(f"batch_size_predict: {batch_size_predict}")
 
@@ -247,6 +247,7 @@ input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biat
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
 denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
+# denovo_input_feature_file = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
 denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"

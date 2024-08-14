@@ -216,7 +216,7 @@ def train():
             batch_decoder_inputs_forward = batch_decoder_inputs_forward.to(device)
             batch_decoder_inputs_backward = batch_decoder_inputs_backward.to(device)
 
-            # (eq_len, batchsize, 26, 40, 10)
+            # (seq_len, batchsize, 26, 40, 10)
             batch_intensity_inputs_forward = batch_intensity_inputs_forward.permute(1, 0, 2, 3, 4)
             batch_intensity_inputs_backward = batch_intensity_inputs_backward.permute(1, 0, 2, 3, 4)
             # (seq_len, batchsize)

@@ -32,25 +32,46 @@ logger = logging.getLogger(__name__)
 
 #     def forward(self, x):
 #         return x + self.pos_table[:, : x.size(1)].clone().detach()
-
 class PositionalEncoding(nn.Module):
-    def __init__(self,
-                 emb_size: int,
-                 dropout: float,
-                 maxlen: int = 5000):
+    "Implement the PE function."
+    def __init__(self, d_model, dropout, max_len=5000):
         super(PositionalEncoding, self).__init__()
-        den = torch.exp(- torch.arange(0, emb_size, 2)* math.log(10000) / emb_size)
-        pos = torch.arange(0, maxlen).reshape(maxlen, 1)
-        pos_embedding = torch.zeros((maxlen, emb_size))
-        pos_embedding[:, 0::2] = torch.sin(pos * den)
-        pos_embedding[:, 1::2] = torch.cos(pos * den)
-        pos_embedding = pos_embedding.unsqueeze(-2)
+        self.dropout = nn.Dropout(p=dropout)
+        
+        # Compute the positional encodings once in log space.
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) *
+                             -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+        
+    def forward(self, x):
+        x = x + self.pe[:, :x.size(1)].clone().detach()
+        return self.dropout(x)
 
-        self.dropout = nn.Dropout(dropout)
-        self.register_buffer('pos_embedding', pos_embedding)
+# class PositionalEncoding(nn.Module):
+#     def __init__(self,
+#                  emb_size: int,
+#                  dropout: float,
+#                  maxlen: int = 5000):
+#         super(PositionalEncoding, self).__init__()
+#         den = torch.exp(- torch.arange(0, emb_size, 2)* math.log(10000) / emb_size)
+#         pos = torch.arange(0, maxlen).reshape(maxlen, 1)
+#         pos_embedding = torch.zeros((maxlen, emb_size))
+#         pos_embedding[:, 0::2] = torch.sin(pos * den)
+#         pos_embedding[:, 1::2] = torch.cos(pos * den)
+#         pos_embedding = pos_embedding.unsqueeze(-2)
 
-    def forward(self, token_embedding: torch.Tensor):
-        return self.dropout(token_embedding + self.pos_embedding[:token_embedding.size(0), :])
+#         self.dropout = nn.Dropout(dropout)
+#         self.register_buffer('pos_embedding', pos_embedding)
+
+#     def forward(self, token_embedding: torch.Tensor):
+#         token_embedding =  token_embedding.permute(1, 0, 2)
+#         x =  self.dropout(token_embedding + self.pos_embedding[:token_embedding.size(0), :])
+#         return x.permute(1, 0, 2)
 
 class TokenEmbedding(nn.Module):
     def __init__(self, vocab_size: int, emb_size):
@@ -187,15 +208,33 @@ class TransformerDecoderFormal(nn.Module):
     def __init__(self, feature_size, num_decoder_layers, num_heads, hidden_dim, dropout=0.1):
         super(TransformerDecoderFormal, self).__init__()
         self.tgt_tok_emb = TokenEmbedding(deepnovo_config.vocab_size, deepnovo_config.embedding_size)
-        self.pos_encoder = PositionalEncoding(emb_size=feature_size, dropout=dropout)
+        self.pos_encoder = PositionalEncoding(feature_size, dropout=dropout)
         decoder_layer = nn.TransformerDecoderLayer(d_model=feature_size, nhead=num_heads, dim_feedforward=hidden_dim, dropout=dropout,
                                                    batch_first=True)
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
 
     def forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None):
-        x = self.pos_encoder(self.tgt_tok_emb(x))
-        output = self.transformer_decoder(x, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
+        token_emb = self.tgt_tok_emb(x)
+        pos_emb = self.pos_encoder(token_emb)
+        output = self.transformer_decoder(pos_emb, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
         return output
+        # if output.shape[1] == 8:
+        #     # logger.info(f"aaid:{before[2]}")
+        #     # logger.info(f"token_emb[2]:{token_emb[2].mean()}") 
+        #     # logger.info(f"pos_emb[2]:{pos_emb[2].mean()}")
+        #     # logger.info(f"output:{output.shape}")
+        #     # logger.info(f"memory:{memory[2].mean()}")
+        #     # logger.info(f"output[2].mean():{output[2].mean()}")
+        #     # logger.info(f"output[2].std():{output[2].std()}")
+        #     # logger.info(f"output[2]:{output[2]}")
+        #     logger.info(f"aaid:{before[16]}")
+        #     logger.info(f"token_emb[16]:{token_emb[16].mean()}") 
+        #     logger.info(f"pos_emb[16]:{pos_emb[16].mean()}")
+        #     logger.info(f"output:{output.shape}")
+        #     logger.info(f"memory:{memory[16].mean()}")
+        #     logger.info(f"output[16].mean():{output[16].mean()}")
+        #     logger.info(f"output[16].std():{output[16].std()}")
+        #     logger.info(f"output[16]:{output[16]}")
 
 class TransformerEncoderDecoder(nn.Module):
     def __init__(self):
