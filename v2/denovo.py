@@ -306,8 +306,6 @@ class DeepNovoAttionDenovo():
             #     with knapsack dynamic programming and beam search.
             block_index = 0
             for entry_index, search_entry in enumerate(active_search_list):
-                if current_step == 7:
-                    print("debug")
                 new_path_list = []
                 direction = search_entry.current_path_list[0].direction
                 for index in range(block_index, block_index + search_entry_size[entry_index]):
@@ -390,78 +388,80 @@ class DeepNovoAttionDenovo():
         return result
 
 
-    def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
-        start_time = time.time()
-        feature_batch_size = len(batch_denovo_data.dia_features)
-        start_points_tuple = self._get_start_point(batch_denovo_data)
-        top_candidate_batch = [[] for x in range(feature_batch_size)]
-
-        for start_points in start_points_tuple:
-            beam_search_result_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points)
-            for feature_index in range(feature_batch_size):
-                top_candidate_batch[feature_index].extend(beam_search_result_batch[feature_index])
-        predicted_batch = self._select_path(batch_denovo_data, top_candidate_batch)
-        test_time = time.time() - start_time
-        logger.info("beam_search(): batch time {}s".format(test_time))
-        return predicted_batch
-
-
     # def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
     #     start_time = time.time()
     #     feature_batch_size = len(batch_denovo_data.dia_features)
     #     start_points_tuple = self._get_start_point(batch_denovo_data)
+    #     top_candidate_batch = [[] for x in range(feature_batch_size)]
 
-    #     top_candidate_forward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[0])
-    #     top_forward_denovo_result = self._select_path(batch_denovo_data, top_candidate_forward_batch)
-    #     top_candidate_backward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[1])
-    #     top_backward_denovo_result = self._select_path(batch_denovo_data, top_candidate_backward_batch)
-    #     denovo_data_list = self._denovo_decollate_func(batch_denovo_data)
-    #     sepctrum_index = []
-    #     train_data_list = []
-    #     predicted_batch = []
-        
-    #     for feature_index in range(feature_batch_size):
-    #         forward_sequence = top_forward_denovo_result[feature_index].best_beam_search_sequence.sequence
-    #         backward_sequence = top_backward_denovo_result[feature_index].best_beam_search_sequence.sequence
-    #         precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
-    #         if len(forward_sequence) > 0 and len(backward_sequence) > 0:
-    #             concate_result = self.concate_more(forward_sequence, backward_sequence, precursor_mass)
-    #         elif len(forward_sequence) > 0:
-    #             concate_result = forward_sequence
-    #         else:  #F2:1241
-    #             logger.info("only backward_sequence")
-    #             logger.info(denovo_data_list[feature_index].dia_feature.feature_id)
-    #             concate_result = backward_sequence
-    #         for sequence in concate_result:
-    #             train_data = self._convert2training_data(denovo_data_list[feature_index], sequence)
-    #             train_data_list.append(train_data)
-    #             sepctrum_index.append(feature_index)
-            
-    #     bi_score = self.test_accuracy_score_v2(train_data_list, model_wrapper)
-    #     result_score = [[] for x in range(feature_batch_size)]
-    #     index = 0
-    #     for x in bi_score:
-    #         result_score[sepctrum_index[index]].append(x)
-    #         index += 1
-    
-    #     for feature_index in range(feature_batch_size):
-    #         score_sum_list = []
-    #         for result in result_score[feature_index]:
-    #             score_sum_list.append(result["score_sum"])
-    #         if len(score_sum_list) > 0:
-    #             tmp_i = score_sum_list.index(max(score_sum_list))
-    #             best_beam_search_sequence = BeamSearchedSequence(sequence=result_score[feature_index][tmp_i]["aaid_sequence"],
-    #                                  position_score=result_score[feature_index][tmp_i]["position_score"],
-    #                                  score=score_sum_list[tmp_i])
-    #             denovo_result = DenovoResult(
-    #                 dia_feature=batch_denovo_data.dia_features[feature_index],
-    #                 best_beam_search_sequence=best_beam_search_sequence
-    #             )
-    #             predicted_batch.append(denovo_result)
-
+    #     for start_points in start_points_tuple:
+    #         beam_search_result_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points)
+    #         for feature_index in range(feature_batch_size):
+    #             top_candidate_batch[feature_index].extend(beam_search_result_batch[feature_index])
+    #     predicted_batch = self._select_path(batch_denovo_data, top_candidate_batch)
     #     test_time = time.time() - start_time
     #     logger.info("beam_search(): batch time {}s".format(test_time))
     #     return predicted_batch
+
+
+    def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
+        start_time = time.time()
+        feature_batch_size = len(batch_denovo_data.dia_features)
+        start_points_tuple = self._get_start_point(batch_denovo_data)
+
+        top_candidate_forward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[0])
+        top_forward_denovo_result = self._select_path(batch_denovo_data, top_candidate_forward_batch)
+        top_candidate_backward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[1])
+        top_backward_denovo_result = self._select_path(batch_denovo_data, top_candidate_backward_batch)
+        denovo_data_list = self._denovo_decollate_func(batch_denovo_data)  # tensor to list
+        sepctrum_index = []
+        train_data_list = []
+        predicted_batch = []
+        concate_result = []
+        
+        for feature_index in range(feature_batch_size):
+            forward_sequence = top_forward_denovo_result[feature_index].best_beam_search_sequence.sequence
+            backward_sequence = top_backward_denovo_result[feature_index].best_beam_search_sequence.sequence
+            precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
+            if len(forward_sequence) > 0 and len(backward_sequence) > 0:
+                concate_result = self.concate_more(forward_sequence, backward_sequence, precursor_mass)
+            elif len(forward_sequence) > 0:
+                forward_sequence = [deepnovo_config.vocab_reverse[aa_id] for
+                                           aa_id in forward_sequence]
+                concate_result.append(forward_sequence)
+            else:  #F2:1241
+                backward_sequence = [deepnovo_config.vocab_reverse[aa_id] for aa_id in backward_sequence]
+                concate_result.append(backward_sequence)
+            for sequence in concate_result:
+                train_data = self._convert2training_data(denovo_data_list[feature_index], sequence)
+                train_data_list.append(train_data)
+                sepctrum_index.append(feature_index)
+            
+        bi_score = self.test_accuracy_score_v2(train_data_list, model_wrapper)
+        result_score = [[] for x in range(feature_batch_size)]
+        index = 0
+        for x in bi_score:
+            result_score[sepctrum_index[index]].append(x)
+            index += 1
+    
+        for feature_index in range(feature_batch_size):
+            score_sum_list = []
+            for result in result_score[feature_index]:
+                score_sum_list.append(result["score_sum"])
+            if len(score_sum_list) > 0:
+                tmp_i = score_sum_list.index(max(score_sum_list))
+                best_beam_search_sequence = BeamSearchedSequence(sequence=result_score[feature_index][tmp_i]["aaid_sequence"],
+                                     position_score=result_score[feature_index][tmp_i]["position_score"],
+                                     score=score_sum_list[tmp_i])
+                denovo_result = DenovoResult(
+                    dia_feature=batch_denovo_data.dia_features[feature_index],
+                    best_beam_search_sequence=best_beam_search_sequence
+                )
+                predicted_batch.append(denovo_result)
+
+        test_time = time.time() - start_time
+        logger.info("beam_search(): batch time {}s".format(test_time))
+        return predicted_batch
     
     def test_accuracy_score_v2(self, train_data_list: List[TrainData], model_wrapper: InferenceModelWrapper):
         (
@@ -471,7 +471,6 @@ class DeepNovoAttionDenovo():
             batch_decoder_inputs_forward,
             batch_decoder_inputs_backward
         ) = collate_func(train_data_list)
-        batchsize = spectrum_holder.size(0)
 
         # move to device
         spectrum_holder = spectrum_holder.to(device)
@@ -532,7 +531,7 @@ class DeepNovoAttionDenovo():
         # parse peptide AA sequence to list of ids
         if not sequence:
             logger.info("empty sequence")
-        print(sequence)
+        # logger.info(f"dia_feature: {denovo_data.dia_feature.feature_id}, sequence: {sequence}")
         peptide_ids = [deepnovo_config.vocab[x] for x in sequence]
         peptide_ids_forward = peptide_ids[:]
         peptide_ids_forward.insert(0, deepnovo_config.GO_ID)

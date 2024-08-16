@@ -392,7 +392,7 @@ class DeepNovoTrainDataset(Dataset):
             line = input_file_handle.readline()
 
         return mz_list, intensity_list
-
+    
 
 def collate_func(train_data_list: list[TrainData]):
     """
@@ -400,9 +400,10 @@ def collate_func(train_data_list: list[TrainData]):
     :param train_data_list: list of TrainData
     :return:
     """
-    # sort data by seq length (decreasing order)
-    train_data_list.sort(key=lambda x: len(x.peptide_ids_forward), reverse=True)
-    batch_max_seq_len = len(train_data_list[0].peptide_ids_forward)
+    
+    #train_data_list.sort(key=lambda x: len(x.peptide_ids_forward), reverse=True)
+    # batch_max_seq_len = len(train_data_list[0].peptide_ids_forward)
+    batch_max_seq_len = max([len(x.peptide_ids_forward) for x in train_data_list])
     intensity_shape = train_data_list[0].forward_candidate_intensity[0].shape
     spectrum_holder = [x.spectrum_holder for x in train_data_list]
     spectrum_holder = np.stack(spectrum_holder) # [batch_size, neibor, mz_size]
