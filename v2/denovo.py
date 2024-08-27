@@ -163,6 +163,7 @@ class DeepNovoAttionDenovo():
             predicted_batch.append(denovo_result)
         return predicted_batch
 
+
     def _beam_search(self, model_wrapper : InferenceModelWrapper, batch_denovo_data: BatchDenovoData, start_point_batch: list):
         num_features = len(batch_denovo_data.dia_features)
         top_path_batch = [[] for _ in range(num_features)]
@@ -354,10 +355,16 @@ class DeepNovoAttionDenovo():
         total_batch_num = int(len(beam_search_reader.dataset) / deepnovo_config.batch_size_predict)
         for index, batch_denovo_data in enumerate(beam_search_reader):
             logger.info("Read {}th/{} batches".format(index, total_batch_num))
-            predicted_batch = self._search_denovo_batch(batch_denovo_data, model_wrapper)
-            predicted_denovo_list += predicted_batch
-            for denovo_result in predicted_batch:
-                denovo_writer.write(denovo_result.dia_feature, denovo_result.best_beam_search_sequence)
+            if deepnovo_config.is_sb:
+                predicted_batch = self._sb_search_denovo_batch(batch_denovo_data, model_wrapper)
+                predicted_denovo_list += predicted_batch
+                for denovo_result in predicted_batch:
+                    denovo_writer.write(denovo_result.dia_feature, denovo_result.best_beam_search_sequence)
+            else:
+                predicted_forward_batch, predicted_backward_batch = self._search_denovo_batch(batch_denovo_data, model_wrapper)
+                for denovo_forward_result, denvo_backward_result in zip(predicted_forward_batch, predicted_backward_batch):
+                    denovo_writer.write_sequences(denovo_forward_result.dia_feature, denovo_forward_result.best_beam_search_sequence, denvo_backward_result.best_beam_search_sequence)
+            
 
         return predicted_denovo_list
 
@@ -402,66 +409,94 @@ class DeepNovoAttionDenovo():
     #     test_time = time.time() - start_time
     #     logger.info("beam_search(): batch time {}s".format(test_time))
     #     return predicted_batch
-
-
-    def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
+    
+    def _sb_search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
         start_time = time.time()
         feature_batch_size = len(batch_denovo_data.dia_features)
-        start_points_tuple = self._get_start_point(batch_denovo_data)
+        forward_start_point_lists, backward_start_point_lists = self._get_start_point(batch_denovo_data)
+        top_candidate_batch = [[] for x in range(feature_batch_size)]
 
-        top_candidate_forward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[0])
-        top_forward_denovo_result = self._select_path(batch_denovo_data, top_candidate_forward_batch)
-        top_candidate_backward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[1])
-        top_backward_denovo_result = self._select_path(batch_denovo_data, top_candidate_backward_batch)
-        denovo_data_list = self._denovo_decollate_func(batch_denovo_data)  # tensor to list
-        sepctrum_index = []
-        train_data_list = []
-        predicted_batch = []
-        concate_result = []
-        
+        forward_beam_search_result_batch, backward_beam_search_result_batch = self._sb_beam_search(model_wrapper, batch_denovo_data, forward_start_point_lists, backward_start_point_lists)
         for feature_index in range(feature_batch_size):
-            forward_sequence = top_forward_denovo_result[feature_index].best_beam_search_sequence.sequence
-            backward_sequence = top_backward_denovo_result[feature_index].best_beam_search_sequence.sequence
-            precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
-            if len(forward_sequence) > 0 and len(backward_sequence) > 0:
-                concate_result = self.concate_more(forward_sequence, backward_sequence, precursor_mass)
-            elif len(forward_sequence) > 0:
-                forward_sequence = [deepnovo_config.vocab_reverse[aa_id] for
-                                           aa_id in forward_sequence]
-                concate_result.append(forward_sequence)
-            else:  #F2:1241
-                backward_sequence = [deepnovo_config.vocab_reverse[aa_id] for aa_id in backward_sequence]
-                concate_result.append(backward_sequence)
-            for sequence in concate_result:
-                train_data = self._convert2training_data(denovo_data_list[feature_index], sequence)
-                train_data_list.append(train_data)
-                sepctrum_index.append(feature_index)
-            
-        bi_score = self.test_accuracy_score_v2(train_data_list, model_wrapper)
-        result_score = [[] for x in range(feature_batch_size)]
-        index = 0
-        for x in bi_score:
-            result_score[sepctrum_index[index]].append(x)
-            index += 1
-    
-        for feature_index in range(feature_batch_size):
-            score_sum_list = []
-            for result in result_score[feature_index]:
-                score_sum_list.append(result["score_sum"])
-            if len(score_sum_list) > 0:
-                tmp_i = score_sum_list.index(max(score_sum_list))
-                best_beam_search_sequence = BeamSearchedSequence(sequence=result_score[feature_index][tmp_i]["aaid_sequence"],
-                                     position_score=result_score[feature_index][tmp_i]["position_score"],
-                                     score=score_sum_list[tmp_i])
-                denovo_result = DenovoResult(
-                    dia_feature=batch_denovo_data.dia_features[feature_index],
-                    best_beam_search_sequence=best_beam_search_sequence
-                )
-                predicted_batch.append(denovo_result)
-
+            top_candidate_batch[feature_index].extend(forward_beam_search_result_batch[feature_index])
+            top_candidate_batch[feature_index].extend(backward_beam_search_result_batch[feature_index])
+        predicted_batch = self._select_path(batch_denovo_data, top_candidate_batch)
         test_time = time.time() - start_time
         logger.info("beam_search(): batch time {}s".format(test_time))
         return predicted_batch
+
+    def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> tuple:
+        start_time = time.time()
+        feature_batch_size = len(batch_denovo_data.dia_features)
+        forward_start_point_lists, backward_start_point_lists = self._get_start_point(batch_denovo_data)
+        top_candidate_batch = [[] for x in range(feature_batch_size)]
+
+        forward_beam_search_result_batch, backward_beam_search_result_batch = self._sb_beam_search(model_wrapper, batch_denovo_data, forward_start_point_lists, backward_start_point_lists)
+        top_forward_denovo_result = self._select_path(batch_denovo_data, forward_beam_search_result_batch)
+        top_backward_denovo_result = self._select_path(batch_denovo_data, backward_beam_search_result_batch)
+        test_time = time.time() - start_time
+        logger.info("beam_search(): batch time {}s".format(test_time))
+        return top_forward_denovo_result, top_backward_denovo_result
+
+
+    # def _search_denovo_batch(self, batch_denovo_data: BatchDenovoData, model_wrapper: InferenceModelWrapper) -> List[DenovoResult]:
+    #     start_time = time.time()
+    #     feature_batch_size = len(batch_denovo_data.dia_features)
+    #     start_points_tuple = self._get_start_point(batch_denovo_data)
+
+    #     top_candidate_forward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[0])
+    #     top_forward_denovo_result = self._select_path(batch_denovo_data, top_candidate_forward_batch)
+    #     top_candidate_backward_batch = self._beam_search(model_wrapper, batch_denovo_data, start_points_tuple[1])
+    #     top_backward_denovo_result = self._select_path(batch_denovo_data, top_candidate_backward_batch)
+    #     denovo_data_list = self._denovo_decollate_func(batch_denovo_data)  # tensor to list
+    #     sepctrum_index = []
+    #     train_data_list = []
+    #     predicted_batch = []
+    #     concate_result = []
+        
+    #     for feature_index in range(feature_batch_size):
+    #         forward_sequence = top_forward_denovo_result[feature_index].best_beam_search_sequence.sequence
+    #         backward_sequence = top_backward_denovo_result[feature_index].best_beam_search_sequence.sequence
+    #         precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
+    #         if len(forward_sequence) > 0 and len(backward_sequence) > 0:
+    #             concate_result = self.concate_more(forward_sequence, backward_sequence, precursor_mass)
+    #         elif len(forward_sequence) > 0:
+    #             forward_sequence = [deepnovo_config.vocab_reverse[aa_id] for
+    #                                        aa_id in forward_sequence]
+    #             concate_result.append(forward_sequence)
+    #         else:  #F2:1241
+    #             backward_sequence = [deepnovo_config.vocab_reverse[aa_id] for aa_id in backward_sequence]
+    #             concate_result.append(backward_sequence)
+    #         for sequence in concate_result:
+    #             train_data = self._convert2training_data(denovo_data_list[feature_index], sequence)
+    #             train_data_list.append(train_data)
+    #             sepctrum_index.append(feature_index)
+            
+    #     bi_score = self.test_accuracy_score_v2(train_data_list, model_wrapper)
+    #     result_score = [[] for x in range(feature_batch_size)]
+    #     index = 0
+    #     for x in bi_score:
+    #         result_score[sepctrum_index[index]].append(x)
+    #         index += 1
+    
+    #     for feature_index in range(feature_batch_size):
+    #         score_sum_list = []
+    #         for result in result_score[feature_index]:
+    #             score_sum_list.append(result["score_sum"])
+    #         if len(score_sum_list) > 0:
+    #             tmp_i = score_sum_list.index(max(score_sum_list))
+    #             best_beam_search_sequence = BeamSearchedSequence(sequence=result_score[feature_index][tmp_i]["aaid_sequence"],
+    #                                  position_score=result_score[feature_index][tmp_i]["position_score"],
+    #                                  score=score_sum_list[tmp_i])
+    #             denovo_result = DenovoResult(
+    #                 dia_feature=batch_denovo_data.dia_features[feature_index],
+    #                 best_beam_search_sequence=best_beam_search_sequence
+    #             )
+    #             predicted_batch.append(denovo_result)
+
+    #     test_time = time.time() - start_time
+    #     logger.info("beam_search(): batch time {}s".format(test_time))
+    #     return predicted_batch
     
     def test_accuracy_score_v2(self, train_data_list: List[TrainData], model_wrapper: InferenceModelWrapper):
         (
@@ -563,3 +598,322 @@ class DeepNovoAttionDenovo():
                          candidate_intensity_forward,
                          candidate_intensity_backward)
 
+    def _sb_beam_search(self, model_wrapper: InferenceModelWrapper, batch_denovo_data: BatchDenovoData,
+                        forward_start_point_lists, backward_start_point_lists):
+        num_features = len(batch_denovo_data.dia_features)
+        top_path_batch_l2r = [[] for _ in range(num_features)]
+        top_path_batch_r2l = [[] for _ in range(num_features)]
+
+        direction_cint_map = {Direction.forward: 0, Direction.backward: 1}
+       
+
+        # step 1: extract original spectrum
+        spectrum_cnn_outputs = model_wrapper.init_spectrum_cnn(batch_denovo_data.spectrum_holder) # (batchszie, 16, 256)
+
+        # initialize activate search list
+        active_search_list_l2r = []
+        active_search_list_r2l = []
+
+        get_start_mass = lambda x: x.prefix_mass
+        first_label = deepnovo_config.GO_ID
+        last_label = deepnovo_config.EOS_ID
+        for feature_index in range(num_features):  # batchsize
+            # all feature in the same batch should be from same direction
+            path = SearchPath(
+                aa_id_list=[first_label],
+                aa_seq_mass=get_start_mass(forward_start_point_lists[feature_index]),
+                score_list=[0.0],
+                score_sum=0.0,
+                direction=Direction.forward,
+            )
+            search_entry = SearchEntry(
+                feature_index=feature_index,
+                current_path_list=[path]
+            )
+            active_search_list_l2r.append(search_entry)
+        
+        get_start_mass = lambda x: x.suffix_mass
+        first_label = deepnovo_config.EOS_ID
+        last_label = deepnovo_config.GO_ID
+        for feature_index in range(num_features):
+            path = SearchPath(
+                aa_id_list=[first_label],
+                aa_seq_mass=get_start_mass(backward_start_point_lists[feature_index]),
+                score_list=[0.0],
+                score_sum=0.0,
+                direction=Direction.backward,
+            )
+            search_entry = SearchEntry(
+                feature_index=feature_index,
+                current_path_list=[path]
+            )
+            active_search_list_r2l.append(search_entry)
+
+        # repeat STEP 2, 3, 4 until the active_search_list is empty.
+        current_step = 0
+        while True:
+            # STEP 2: gather data from active search entries and group into blocks.
+
+            # model input
+            block_intensity_input_l2r = []
+            # data stored in path
+            block_aa_id_list_l2r = []
+            block_aa_seq_mass_l2r = []
+            block_score_list_l2r = []
+            block_score_sum_l2r = []
+            block_spectrum_cnn_outputs_l2r = []
+            block_knapsack_candidates_l2r = []
+
+            block_intensity_input_r2l = []
+            block_aa_id_list_r2l = []
+            block_aa_seq_mass_r2l = []
+            block_score_list_r2l = []
+            block_score_sum_r2l = []
+            block_spectrum_cnn_outputs_r2l = []
+            block_knapsack_candidates_r2l = []
+
+            # store the number of paths of each search entry in the big blocks
+            #     to retrieve the info of each search entry later in STEP 4.
+            search_entry_size_l2r = [0] * len(active_search_list_l2r)
+            search_entry_size_r2l = [0] * len(active_search_list_r2l)
+
+            last_label = deepnovo_config.EOS_ID
+            for entry_index, search_entry in enumerate(active_search_list_l2r):
+                # 迭代batchsize
+                feature_index = search_entry.feature_index
+                current_path_list = search_entry.current_path_list
+                precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
+                peak_mass_tolerance = forward_start_point_lists[feature_index].mass_tolerance
+                spectrum_original = batch_denovo_data.spectrum_original_forward[feature_index]
+                # elif direction == Direction.backward:
+                #     spectrum_original = batch_denovo_data.spectrum_original_backward[feature_index]
+                start_index = len(block_score_sum_l2r)
+                for path in current_path_list: # eg: SearchPath(aaid_id_list=[1, 9])
+                    aa_id_list = path.aa_id_list
+                    aa_id = aa_id_list[-1]
+                    score_sum = path.score_sum
+                    aa_seq_mass = path.aa_seq_mass
+                    score_list = path.score_list
+
+                    # if aa_seq_mass > precursor_mass + peak_mass_tolerance:
+                    #     # 终止条件：aa_seq_mass超过了precursor_mass+peak_mass_tolerance
+                    #     continue
+
+                    if aa_id == last_label:
+                        # 终止条件：最后一个aa是EOS
+                        if abs(aa_seq_mass - precursor_mass) <= peak_mass_tolerance:
+                            seq = aa_id_list[1:-1]
+                            trunc_score_list = score_list[1:-1]
+                      
+                            top_path_batch_l2r[feature_index].append(
+                                BeamSearchedSequence(sequence=seq,
+                                                     position_score=trunc_score_list,
+                                                     score=path.score_sum / len(seq))
+                            )
+
+                    candidate_intensity = get_candidate_intensity(spectrum_original,
+                                                                  precursor_mass,
+                                                                  aa_seq_mass,
+                                                                  direction_cint_map[Direction.forward])
+                    residual_mass = precursor_mass - aa_seq_mass - deepnovo_config.mass_ID[last_label]
+                    knapsack_tolerance = int(round(peak_mass_tolerance * deepnovo_config.KNAPSACK_AA_RESOLUTION))
+                    # list of avaliable aa_id
+                    knapsack_candidates = self.knapsack_searcher.search_knapsack(residual_mass, knapsack_tolerance)
+
+                    # if not possible aa, force it to stop.
+                    if not knapsack_candidates:
+                        if aa_id != last_label and aa_id != deepnovo_config.PAD_ID:
+                            knapsack_candidates.append(last_label)
+                        else:
+                            knapsack_candidates.append(deepnovo_config.PAD_ID)
+
+                    block_intensity_input_l2r.append(candidate_intensity)
+                    block_aa_id_list_l2r.append(aa_id_list)
+                    block_aa_seq_mass_l2r.append(aa_seq_mass)
+                    block_score_list_l2r.append(score_list)
+                    block_score_sum_l2r.append(score_sum)
+                    block_knapsack_candidates_l2r.append(knapsack_candidates)
+                    block_spectrum_cnn_outputs_l2r.append(spectrum_cnn_outputs[entry_index, :, :].unsqueeze_(0))
+                    # record the size of each search entry in the blocks
+                    search_entry_size_l2r[entry_index] += 1
+                # 按score排序
+                sorted_indices = sorted(range(start_index, len(block_score_sum_l2r)), key=lambda i: block_score_sum_l2r[i], reverse=True)
+                block_intensity_input_l2r[start_index:] = [block_intensity_input_l2r[i] for i in sorted_indices]
+                block_aa_id_list_l2r[start_index:] = [block_aa_id_list_l2r[i] for i in sorted_indices]
+                block_aa_seq_mass_l2r[start_index:] = [block_aa_seq_mass_l2r[i] for i in sorted_indices]
+                block_score_list_l2r[start_index:] = [block_score_list_l2r[i] for i in sorted_indices]
+                block_score_sum_l2r[start_index:] = [block_score_sum_l2r[i] for i in sorted_indices]
+                block_knapsack_candidates_l2r[start_index:] = [block_knapsack_candidates_l2r[i] for i in sorted_indices]
+                block_spectrum_cnn_outputs_l2r[start_index:] = [block_spectrum_cnn_outputs_l2r[i] for i in sorted_indices]      
+
+
+            last_label = deepnovo_config.GO_ID
+            for entry_index, search_entry in enumerate(active_search_list_r2l):
+                feature_index = search_entry.feature_index
+                current_path_list = search_entry.current_path_list
+                precursor_mass = batch_denovo_data.dia_features[feature_index].precursor_mass
+                peak_mass_tolerance = backward_start_point_lists[feature_index].mass_tolerance
+                spectrum_original = batch_denovo_data.spectrum_original_backward[feature_index]
+
+                start_index = len(block_score_sum_r2l)
+                for path in current_path_list:
+                    aa_id_list = path.aa_id_list
+                    aa_id = aa_id_list[-1]
+                    score_sum = path.score_sum
+                    aa_seq_mass = path.aa_seq_mass
+                    score_list = path.score_list
+        
+                    # if aa_seq_mass > precursor
+                    if aa_id == last_label:
+                        if abs(aa_seq_mass - precursor_mass) <= peak_mass_tolerance:
+                            seq = aa_id_list[1:-1]
+                            trunc_score_list = score_list[1:-1]
+                            seq = seq[::-1]
+                            trunc_score_list = trunc_score_list[::-1]
+                            top_path_batch_r2l[feature_index].append(
+                                BeamSearchedSequence(sequence=seq,
+                                                     position_score=trunc_score_list,
+                                                     score=path.score_sum / len(seq))
+                            )
+                    candidate_intensity = get_candidate_intensity(spectrum_original,
+                                                                  precursor_mass,
+                                                                  aa_seq_mass,
+                                                                  direction_cint_map[Direction.backward])
+                    residual_mass = precursor_mass - aa_seq_mass - deepnovo_config.mass_ID[last_label]
+                    knapsack_tolerance = int(round(peak_mass_tolerance * deepnovo_config.KNAPSACK_AA_RESOLUTION))
+                    # list of avaliable aa_id
+                    knapsack_candidates = self.knapsack_searcher.search_knapsack(residual_mass, knapsack_tolerance)
+                    # if not possible aa, force it to stop.
+                    if not knapsack_candidates:
+                        if aa_id != last_label and aa_id != deepnovo_config.PAD_ID:
+                            knapsack_candidates.append(last_label)
+                        else:
+                            knapsack_candidates.append(deepnovo_config.PAD_ID)
+
+                    block_intensity_input_r2l.append(candidate_intensity)
+                    block_aa_id_list_r2l.append(aa_id_list)
+                    block_aa_seq_mass_r2l.append(aa_seq_mass)
+                    block_score_list_r2l.append(score_list)
+                    block_score_sum_r2l.append(score_sum)
+                    block_knapsack_candidates_r2l.append(knapsack_candidates)
+                    block_spectrum_cnn_outputs_r2l.append(spectrum_cnn_outputs[entry_index, :, :].unsqueeze_(0))
+                    # record the size of each search entry in the blocks
+                    search_entry_size_r2l[entry_index] += 1
+                # 按score排序
+                sorted_indices = sorted(range(start_index, len(block_score_sum_r2l)), key=lambda i: block_score_sum_r2l[i], reverse=True)
+                block_intensity_input_r2l[start_index:] = [block_intensity_input_r2l[i] for i in sorted_indices]
+                block_aa_id_list_r2l[start_index:] = [block_aa_id_list_r2l[i] for i in sorted_indices]
+                block_aa_seq_mass_r2l[start_index:] = [block_aa_seq_mass_r2l[i] for i in sorted_indices]
+                block_score_list_r2l[start_index:] = [block_score_list_r2l[i] for i in sorted_indices]
+                block_score_sum_r2l[start_index:] = [block_score_sum_r2l[i] for i in sorted_indices]
+                block_knapsack_candidates_r2l[start_index:] = [block_knapsack_candidates_r2l[i] for i in sorted_indices]
+                block_spectrum_cnn_outputs_r2l[start_index:] = [block_spectrum_cnn_outputs_r2l[i] for i in sorted_indices]
+
+
+            # 检查 block_aa_id_list_l2r 和 block_aa_id_list_r2l 中所有序列是否都包含终止符
+            if all(deepnovo_config.EOS_ID in x for x in block_aa_id_list_l2r) and all(
+                deepnovo_config.GO_ID in x for x in block_aa_id_list_r2l):
+                break
+
+            # step 3 run model on data blocks to predict next AA.
+           
+            # 逐元素比较两个列表
+            assert all(l2r == r2l for l2r, r2l in zip(search_entry_size_l2r, search_entry_size_r2l))
+            # (batchsize * beamsize, 26, 40, 10)
+            block_intensity_input_l2r = torch.from_numpy(np.array(block_intensity_input_l2r)).to(device)
+            # (seq_len, batchsize * beamsize)
+            block_decoder_inputs_l2r = torch.from_numpy(np.array(block_aa_id_list_l2r).transpose(1, 0)).to(device)
+            block_intensity_input_r2l = torch.from_numpy(np.array(block_intensity_input_r2l)).to(device)
+            block_decoder_inputs_r2l = torch.from_numpy(np.array(block_aa_id_list_r2l).transpose(1, 0)).to(device)
+
+            block_spectrum_cnn_outputs_l2r = torch.cat(block_spectrum_cnn_outputs_l2r, dim=0)
+                
+            current_log_prob_forward, current_log_prob_backward = model_wrapper.inference(
+                block_spectrum_cnn_outputs_l2r,
+                block_intensity_input_l2r,
+                block_intensity_input_r2l,
+                block_decoder_inputs_l2r,
+                block_decoder_inputs_r2l
+            )
+            
+            Logsoftmax = torch.nn.LogSoftmax(dim=1)
+            current_log_prob_forward = Logsoftmax(current_log_prob_forward)
+            current_log_prob_backward = Logsoftmax(current_log_prob_backward)
+            # transfer log_prob back to cpu
+            current_log_prob_forward = current_log_prob_forward.cpu().numpy()
+            current_log_prob_backward = current_log_prob_backward.cpu().numpy()
+
+
+            # STEP 4: retrieve data from blocks to update the active_search_list
+            #     with knapsack dynamic programming and beam search.
+                        # STEP 4: retrieve data from blocks to update the active_search_list
+            #     with knapsack dynamic programming and beam search.
+            block_index = 0
+            for entry_index, search_entry in enumerate(active_search_list_l2r):
+                new_path_list = []
+                direction = search_entry.current_path_list[0].direction
+                for index in range(block_index, block_index + search_entry_size_l2r[entry_index]):
+                    for aa_id in block_knapsack_candidates_l2r[index]:  # < batchsize * beamsize
+                        if aa_id > 2:
+                            # do not add score of GO, EOS, PAD
+                            new_score_list = block_score_list_l2r[index] + [current_log_prob_forward[index][aa_id]]
+                            new_score_sum = block_score_sum_l2r[index] + current_log_prob_forward[index][aa_id]
+                        else:
+                            new_score_list = block_score_list_l2r[index] + [0.0]
+                            new_score_sum = block_score_sum_l2r[index] + 0.0
+
+                        new_path = SearchPath(
+                            aa_id_list=block_aa_id_list_l2r[index] + [aa_id],
+                            aa_seq_mass=block_aa_seq_mass_l2r[index] + deepnovo_config.mass_ID[aa_id],
+                            score_list=new_score_list,
+                            score_sum=new_score_sum,
+                            direction=direction
+                        )
+                        new_path_list.append(new_path)
+                if len(new_path_list) > self.beam_size:
+                    new_path_score = np.array([x.score_sum for x in new_path_list])
+                    top_k_index = np.argpartition(-new_path_score, self.beam_size)[:self.beam_size]
+                    search_entry.current_path_list = [new_path_list[ii] for ii in top_k_index]  # list of SearchPath
+                else:
+                    search_entry.current_path_list = new_path_list
+
+                block_index += search_entry_size_l2r[entry_index]
+            # remove search entry with no path
+            active_search_list_l2r = [x for x in active_search_list_l2r if x.current_path_list]  # batchsize
+
+            block_index = 0
+            for entry_index, search_entry in enumerate(active_search_list_r2l):
+                new_path_list = []
+                direction = search_entry.current_path_list[0].direction
+                for index in range(block_index, block_index + search_entry_size_r2l[entry_index]):
+                    for aa_id in block_knapsack_candidates_r2l[index]:
+                        if aa_id > 2:
+                            new_score_list = block_score_list_r2l[index] + [current_log_prob_backward[index][aa_id]]
+                            new_score_sum = block_score_sum_r2l[index] + current_log_prob_backward[index][aa_id]
+                        else:
+                            new_score_list = block_score_list_r2l[index] + [0.0]
+                            new_score_sum = block_score_sum_r2l[index] + 0.0
+
+                        new_path = SearchPath(
+                            aa_id_list=block_aa_id_list_r2l[index] + [aa_id],
+                            aa_seq_mass=block_aa_seq_mass_r2l[index] + deepnovo_config.mass_ID[aa_id],
+                            score_list=new_score_list,
+                            score_sum=new_score_sum,
+                            direction=direction
+                        )
+                        new_path_list.append(new_path)
+                if len(new_path_list) > self.beam_size:
+                    new_path_score = np.array([x.score_sum for x in new_path_list])
+                    top_k_index = np.argpartition(-new_path_score, self.beam_size)[:self.beam_size]
+                    search_entry.current_path_list = [new_path_list[ii] for ii in top_k_index]  # list of SearchPath
+                else:
+                    search_entry.current_path_list = new_path_list
+                block_index += search_entry_size_r2l[entry_index]
+            # remove search entry with no path
+            active_search_list_r2l = [x for x in active_search_list_r2l if x.current_path_list]
+
+            current_step += 1
+            if not active_search_list_l2r and not active_search_list_r2l:
+                break
+
+        return top_path_batch_l2r, top_path_batch_r2l

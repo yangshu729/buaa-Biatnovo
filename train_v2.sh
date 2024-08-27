@@ -7,7 +7,7 @@ export CUDA_VISIBLE_DEVICES=6
 
 # Define the Python script and its arguments
 PYTHON_SCRIPT="v2/main.py"
-ARGS="--train --train_dir /root/v2/transformer_fix_postion_bug/"
+ARGS="--train --train_dir /root/v2/temp"
 
 # Function to run the Python script
 run_script() {

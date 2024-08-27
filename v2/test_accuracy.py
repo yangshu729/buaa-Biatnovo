@@ -36,6 +36,22 @@ def cal_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward,
     loss = (loss_b + loss_f) / 2.0
     return loss
 
+def cal_sb_dia_focal_loss(pred_forward, pred_backward, gold_forward, gold_backward, forward_half_mask, backward_half_mask):
+    zeros_forward = torch.zeros_like(gold_forward, dtype=gold_forward.dtype)
+    ones_forward = torch.ones_like(gold_forward, dtype=gold_forward.dtype)
+    gold_forward_weight = torch.where(gold_forward == 0, zeros_forward, ones_forward) * forward_half_mask
+    zeros_backward = torch.zeros_like(gold_backward, dtype=gold_backward.dtype)
+    ones_backward = torch.ones_like(gold_backward, dtype=gold_backward.dtype)
+    gold_backward_weight = torch.where(gold_backward == 0, zeros_backward, ones_backward) * backward_half_mask
+    loss_f = cal_folcal_loss(pred_forward, gold_forward) * gold_forward_weight
+    total_forward_weight = torch.sum(gold_forward_weight) + 1e-12
+    loss_f = torch.sum(loss_f) / total_forward_weight
+    loss_b = cal_folcal_loss(pred_backward, gold_backward) * gold_backward_weight
+    total_backward_weight = torch.sum(gold_backward_weight) + 1e-12
+    loss_b = torch.sum(loss_b) / total_backward_weight
+    loss = (loss_b + loss_f) / 2.0
+    return loss
+
 
 def trim_decoder_input(decoder_input, direction):
   """TODO(nh2tran): docstring."""
