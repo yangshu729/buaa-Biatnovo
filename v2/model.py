@@ -261,11 +261,15 @@ class DeepNovoAttion(nn.Module):
         #     decoder_inputs_forward_trans, decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask=src_mask)
         # print("output_transformer_forward", output_transformer_forward.mean())
         # print("output_transformer_backward", output_transformer_backward.mean())
+        logger.info("transformer forward================")
         output_transformer_forward = self.transformer(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
                                                 tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        logger.info("transformer backward================")
         output_transformer_backward = self.transformer(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
                                                 tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        logger.info(f"output_transformer_forward: {output_transformer_forward}")
         logger.info(f"output_transformer_forward: {output_transformer_forward.mean()}")
+        logger.info(f"output_transformer_backward: {output_transformer_backward}")
         logger.info(f"output_transformer_backward: {output_transformer_backward.mean()}")
         # part 2: ion cnn
         output_forward = []

@@ -233,9 +233,18 @@ class TransformerDecoderFormal(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
 
     def forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None):
+        logger.info("++++++++++++++++++++++++++")
+        logger.info(x)
+        logger.info(memory.mean())
+        logger.info(tgt_mask)
+        logger.info(tgt_key_padding_mask)
         token_emb = self.tgt_tok_emb(x)
+        logger.info(f"toekn_emb:{token_emb.mean()}")
         pos_emb = self.pos_encoder(token_emb)
+        logger.info(f"pos_emb:{pos_emb.mean()}")
         output = self.transformer_decoder(pos_emb, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
+        logger.info(f"transformer_decoder:{output.mean()}")
+        logger.info("++++++++++++++++++++++++++")
         return output
     
 
