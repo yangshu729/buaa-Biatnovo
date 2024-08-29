@@ -185,10 +185,10 @@ class DeepNovoAttion(nn.Module):
         self.d_k = deepnovo_config.embedding_size // deepnovo_config.n_head
         self.d_v = self.d_k
        
-        self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
-                                                 deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0,  dropout_keep=dropout_keep)
+        # self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
+                                                #  deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0,  dropout_keep=dropout_keep)
         # else:    
-        #     self.transformer = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
+        self.transformer = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
         # 初始化transformer模型参数
         for p in self.transformer.parameters():
             if p.dim() > 1:
@@ -249,15 +249,24 @@ class DeepNovoAttion(nn.Module):
         decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
         decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
         src_mask = self.get_src_mask(spectrum_cnn_outputs)
+        tgt_padding_mask = (decoder_inputs_forward_trans == 0)
+        seq_len = decoder_inputs_forward_trans.size(1)
+        tgt_mask=self.generate_square_subsequent_mask(seq_len)
         
         # true : not mask, false : mask
-        trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
-            decoder_inputs_forward_trans)
+        # trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
+        #     decoder_inputs_forward_trans)
         # forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None)
-        output_transformer_forward, output_transformer_backward = self.transformer(
-            decoder_inputs_forward_trans, decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask=src_mask)
-        print("output_transformer_forward", output_transformer_forward.mean())
-        print("output_transformer_backward", output_transformer_backward.mean())
+        # output_transformer_forward, output_transformer_backward = self.transformer(
+        #     decoder_inputs_forward_trans, decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask=src_mask)
+        # print("output_transformer_forward", output_transformer_forward.mean())
+        # print("output_transformer_backward", output_transformer_backward.mean())
+        output_transformer_forward = self.transformer(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
+                                                tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        output_transformer_backward = self.transformer(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
+                                                tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        logger.info(f"output_transformer_forward: {output_transformer_forward.mean()}")
+        logger.info(f"output_transformer_backward: {output_transformer_backward.mean()}")
         # part 2: ion cnn
         output_forward = []
         output_backward = []
@@ -275,10 +284,11 @@ class DeepNovoAttion(nn.Module):
         # (seq_len, batchsize, 512) -> (batchsize, seq_len, 512)
         ion_outputs_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
         ion_outputs_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
-
+        logger.info(f"ion_outputs_forward: {ion_outputs_forward.mean()}")
         # part3. combine spectrum_cnn + transformer + ion_cnn
         logit_forward = self.combine_feature(output_transformer_forward, ion_outputs_forward)
         logit_backward = self.combine_feature(output_transformer_backward, ion_outputs_backward)
+        logger.info(f"logit_forward: {logit_forward.mean()}")
         return logit_forward, logit_backward
 
 
