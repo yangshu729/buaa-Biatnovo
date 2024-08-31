@@ -13,13 +13,6 @@ from v2.model import InferenceModelWrapper
 from v2.train_func import create_model, train, create_sb_model
 from v2.writer import DenovoWriter
 
-torch.manual_seed(42)
-np.random.seed(42)
-random.seed(42)
-
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(42)
-    torch.cuda.manual_seed_all(42)
 
 logger = logging.getLogger(__name__)
 def main():

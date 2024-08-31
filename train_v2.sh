@@ -7,7 +7,7 @@ export CUDA_VISIBLE_DEVICES=6
 
 # Define the Python script and its arguments
 PYTHON_SCRIPT="v2/main.py"
-ARGS="--train --train_dir /root/v2/temp"
+ARGS="--train --train_dir /root/v2/sb_transformer_independent_2/"
 
 # Function to run the Python script
 run_script() {

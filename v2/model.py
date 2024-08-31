@@ -186,20 +186,29 @@ class DeepNovoAttion(nn.Module):
         self.d_v = self.d_k
        
         # self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
-                                                #  deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0,  dropout_keep=dropout_keep)
+        #                                          deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0,  dropout_keep=dropout_keep)
         # else:    
-        self.transformer = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
+        self.transformer_forward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
+        self.transformer_backward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
         # 初始化transformer模型参数
-        for p in self.transformer.parameters():
+        for p in self.transformer_forward.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+        for p in self.transformer_backward.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
         self.linear = nn.Linear(512, deepnovo_config.vocab_size)
-        self.combine_feature_dense1 = CustomLinear(768, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
+        self.combine_feature_dense1_forward = CustomLinear(768, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
                                 init_bias=lambda x: constant_initializer(x, 0.1))
-        self.combine_feature_dropout = nn.Dropout(p=(1 - dropout_keep["dense"]))
-        self.combine_feature_dense2 = CustomLinearNoReLU(512, deepnovo_config.vocab_size, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
+        self.combine_feature_dropout1_forward = nn.Dropout(p=(1 - dropout_keep["dense"]))
+        self.combine_feature_dense2_forward = CustomLinearNoReLU(512, deepnovo_config.vocab_size, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
+                                    init_bias=lambda x: constant_initializer(x, 0.1))
+        self.combine_feature_dense1_backward = CustomLinear(768, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
+                                init_bias=lambda x: constant_initializer(x, 0.1))
+        self.combine_feature_dropout1_backward = nn.Dropout(p=(1 - dropout_keep["dense"]))
+        self.combine_feature_dense2_backward = CustomLinearNoReLU(512, deepnovo_config.vocab_size, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
                                     init_bias=lambda x: constant_initializer(x, 0.1))
         #self.trg_word_prj = nn.Linear(768, deepnovo_config.vocab_size, bias=False)
         self.dropout_keep = dropout_keep
@@ -245,7 +254,6 @@ class DeepNovoAttion(nn.Module):
                 decoder_inputs_backward):
         decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
         decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
-        
         decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
         decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
         src_mask = self.get_src_mask(spectrum_cnn_outputs)
@@ -254,23 +262,14 @@ class DeepNovoAttion(nn.Module):
         tgt_mask=self.generate_square_subsequent_mask(seq_len)
         
         # true : not mask, false : mask
-        # trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
-        #     decoder_inputs_forward_trans)
-        # forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None)
-        # output_transformer_forward, output_transformer_backward = self.transformer(
-        #     decoder_inputs_forward_trans, decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask=src_mask)
-        # print("output_transformer_forward", output_transformer_forward.mean())
-        # print("output_transformer_backward", output_transformer_backward.mean())
-        logger.info("transformer forward================")
-        output_transformer_forward = self.transformer(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
+        trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
+            decoder_inputs_forward_trans)
+       
+        output_transformer_forward = self.transformer_forward(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
                                                 tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
-        logger.info("transformer backward================")
-        output_transformer_backward = self.transformer(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
+        
+        output_transformer_backward = self.transformer_backward(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
                                                 tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
-        logger.info(f"output_transformer_forward: {output_transformer_forward}")
-        logger.info(f"output_transformer_forward: {output_transformer_forward.mean()}")
-        logger.info(f"output_transformer_backward: {output_transformer_backward}")
-        logger.info(f"output_transformer_backward: {output_transformer_backward.mean()}")
         # part 2: ion cnn
         output_forward = []
         output_backward = []
@@ -288,11 +287,17 @@ class DeepNovoAttion(nn.Module):
         # (seq_len, batchsize, 512) -> (batchsize, seq_len, 512)
         ion_outputs_forward = torch.cat(output_forward, dim=0).permute(1, 0, 2)
         ion_outputs_backward = torch.cat(output_backward, dim=0).permute(1, 0, 2)
-        logger.info(f"ion_outputs_forward: {ion_outputs_forward.mean()}")
         # part3. combine spectrum_cnn + transformer + ion_cnn
-        logit_forward = self.combine_feature(output_transformer_forward, ion_outputs_forward)
-        logit_backward = self.combine_feature(output_transformer_backward, ion_outputs_backward)
-        logger.info(f"logit_forward: {logit_forward.mean()}")
+        # logit_forward = self.combine_feature(output_transformer_forward, ion_outputs_forward)
+        # logit_backward = self.combine_feature(output_transformer_backward, ion_outputs_backward)
+        output_forward = torch.cat([output_transformer_forward, ion_outputs_forward], dim=2)
+        output_backward = torch.cat([output_transformer_backward, ion_outputs_backward], dim=2)
+        logit_forward = self.combine_feature_dense1_forward(output_forward)
+        logit_forward = self.combine_feature_dropout1_forward(logit_forward)
+        logit_forward = self.combine_feature_dense2_forward(logit_forward)
+        logit_backward = self.combine_feature_dense1_backward(output_backward)
+        logit_backward = self.combine_feature_dropout1_backward(logit_backward)
+        logit_backward = self.combine_feature_dense2_backward(logit_backward)
         return logit_forward, logit_backward
 
 
@@ -338,12 +343,18 @@ class InferenceModelWrapper(object):
             output_forward = torch.cat([output_transformer_forward, output_ion_cnn_forward], dim=1)
             output_backward = torch.cat([output_transformer_backward, output_ion_cnn_backward], dim=1)
 
-            logit_forward = self.sbatt_model.combine_feature_dense1(output_forward)
-            logit_forward = self.sbatt_model.combine_feature_dropout(logit_forward)
-            logit_forward = self.sbatt_model.combine_feature_dense2(logit_forward)
-            logit_backward = self.sbatt_model.combine_feature_dense1(output_backward)
-            logit_backward = self.sbatt_model.combine_feature_dropout(logit_backward)
-            logit_backward = self.sbatt_model.combine_feature_dense2(logit_backward)
+            logit_forward = self.sbatt_model.combine_feature_dense1_forward(output_forward)
+            logit_forward = self.sbatt_model.combine_feature_dropout1_forward(logit_forward)
+            logit_forward = self.sbatt_model.combine_feature_dense2_forward(logit_forward)
+            logit_backward = self.sbatt_model.combine_feature_dense1_backward(output_backward)
+            logit_backward = self.sbatt_model.combine_feature_dropout1_backward(logit_backward)
+            logit_backward = self.sbatt_model.combine_feature_dense2_backward(logit_backward)
+            # logit_forward = self.sbatt_model.combine_feature_dense1(output_forward)
+            # logit_forward = self.sbatt_model.combine_feature_dropout(logit_forward)
+            # logit_forward = self.sbatt_model.combine_feature_dense2(logit_forward)
+            # logit_backward = self.sbatt_model.combine_feature_dense1(output_backward)
+            # logit_backward = self.sbatt_model.combine_feature_dropout(logit_backward)
+            # logit_backward = self.sbatt_model.combine_feature_dense2(logit_backward)
             return logit_forward, logit_backward
 
 

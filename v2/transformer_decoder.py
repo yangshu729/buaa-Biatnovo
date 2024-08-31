@@ -76,7 +76,6 @@ class ScaledDotProductAttention(nn.Module):
         if mode:
             scores = scores.masked_fill(mask == False, -1e9)
         p_attn = scores.softmax(dim=-1)
-        p_attn = self.dropout(p_attn)
         return torch.matmul(p_attn, value), p_attn
 
 class MultiHeadAttention(nn.Module):
@@ -127,12 +126,13 @@ class PositionwiseFeedForward(nn.Module):
         self.w_1 = nn.Linear(d_model, d_ff)
         self.w_2 = nn.Linear(d_ff, d_model)
         self.layer_norm = nn.LayerNorm(d_ff, eps=1e-6)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x):
         residual = x
-        x = self.w_2(F.relu(self.w_1(x)))
-        x = self.dropout(x)
+        x = self.w_2(self.dropout1(F.relu(self.w_1(x))))
+        x = self.dropout2(x)
         x += residual
         x = self.layer_norm(x)
         return x
@@ -175,17 +175,11 @@ class TransformerDecoder(nn.Module):
 
     def forward(self, trg_seq_l2r, trg_seq_r2l, trg_mask, enc_output, src_mask):
         dec_output_l2r = self.trg_word_emb(trg_seq_l2r)
-        dec_output_l2r = self.dropout(self.position_enc(dec_output_l2r))
-        print(f"after_positon_enc, l2r output:{dec_output_l2r.mean()}")
-        dec_output_l2r = self.norm(dec_output_l2r)
-        print(f"after_norm_enc, l2r output:{dec_output_l2r.mean()}")
-
+        dec_output_l2r = self.position_enc(dec_output_l2r)
+        # dec_output_l2r = self.norm(dec_output_l2r)
         dec_output_r2l = self.trg_word_emb(trg_seq_r2l)
-        dec_output_r2l = self.dropout(self.position_enc(dec_output_r2l))
-        print(f"after_positon_enc, r2l output:{dec_output_r2l.mean()}")
-        dec_output_r2l = self.norm(dec_output_r2l)
-        print(f"after_norm_enc, r2l output:{dec_output_r2l.mean()}")
-        print(f"after_norm_enc, r2l output std():{enc_output.std()}")
+        dec_output_r2l = self.position_enc(dec_output_r2l)
+        # dec_output_r2l = self.norm(dec_output_r2l)
         if deepnovo_config.is_sb:
             # 交互式双向
             for forward_dec_layer, backward_dec_layer in zip(self.forward_layer_stacks, self.backward_layer_stacks):
@@ -233,20 +227,9 @@ class TransformerDecoderFormal(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
 
     def forward(self, x, memory, tgt_mask=None, tgt_key_padding_mask=None):
-        logger.info("++++++++++++++++++++++++++")
-        logger.info(x)
-        logger.info(memory.mean())
-        # logger.info(memory)
-        logger.info(tgt_mask)
-        logger.info(tgt_key_padding_mask)
         token_emb = self.tgt_tok_emb(x)
-        logger.info(f"toekn_emb:{token_emb.mean()}")
         pos_emb = self.pos_encoder(token_emb)
-        logger.info(f"pos_emb:{pos_emb.mean()}")
-        logger.info(f"pos_emb:{pos_emb}")
         output = self.transformer_decoder(pos_emb, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)
-        logger.info(f"transformer_decoder:{output.mean()}")
-        logger.info("++++++++++++++++++++++++++")
         return output
     
 

@@ -186,17 +186,17 @@ print("l2_weight ", l2_weight)
 embedding_size = 256
 print("embedding_size ", embedding_size)
 
-# dropout_keep = {
-#   "conv" : 0.75,
-#   "dense" : 0.5,
-#   "transformer": 0.1
-# }
-
 dropout_keep = {
-  "conv" : 1,
-  "dense" : 1,
-  "transformer": 0
+  "conv" : 0.75,
+  "dense" : 0.5,
+  "transformer": 0.1
 }
+
+# dropout_keep = {
+#   "conv" : 1,
+#   "dense" : 1,
+#   "transformer": 0
+# }
 
 logger.info(f"dropout_keep: {dropout_keep}")
 
@@ -242,10 +242,11 @@ topk_output = 1
 # ==============================================================================
 # INPUT/OUTPUT FILES
 # ==============================================================================
-# input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
-input_feature_file_train = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
-input_spectrum_file_train = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
-# input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
+
+# input_feature_file_train = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
+# input_spectrum_file_train = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
+input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
+input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
 denovo_input_feature_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"

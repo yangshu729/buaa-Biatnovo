@@ -278,13 +278,13 @@ def train():
             batch_decoder_inputs_backward = batch_decoder_inputs_backward.permute(1, 0)
 
             spectrum_cnn_outputs = spectrum_cnn(spectrum_holder).permute(1, 0, 2)  # (batchsize, 1, 256)
-            logger.info(f"spectrum_cnn_outputs:{spectrum_cnn_outputs.mean()}")
+
             output_logits_forward, output_logits_backward = sbatt_model(spectrum_cnn_outputs, 
                                                                             batch_intensity_inputs_forward, 
                                                                             batch_intensity_inputs_backward,
                                                                             batch_decoder_inputs_forward[: -1],
                                                                             batch_decoder_inputs_backward[: -1])
-            logger.info(f"output_logits_forward:{output_logits_forward.mean()}")
+           
             # ## (batchsize , seq len, 26)
             # output_logits_forward, output_logits_backward = model(
             #     spectrum_holder,  # (batchsize, neighbor_size, 150000)
@@ -293,12 +293,7 @@ def train():
             #     batch_decoder_inputs_forward[: -1], # (seq_len, batchsize)
             #     batch_decoder_inputs_backward[: -1],
             # )
-            # 找到每个位置在 26 维度中最大值的索引
-            print(torch.max(output_logits_forward, dim=-1))
-            max_indices = torch.argmax(output_logits_forward, dim=-1)
-            logger.info(f"output_logits_forward:{torch.max(output_logits_forward, dim=-1)}")
-            logger.info(f"max_indices:{max_indices}")
-            print(torch.max(output_logits_backward, dim=-1))
+           
             gold_forward = batch_decoder_inputs_forward[1:].permute(1, 0).contiguous().view(-1) # (batchsize * (decoder_size - 1))
             gold_backward = batch_decoder_inputs_backward[1:].permute(1, 0).contiguous().view(-1)
             output_logits_forward_trans = output_logits_forward.reshape(-1, output_logits_forward.size(2))
@@ -308,19 +303,6 @@ def train():
             loss = cal_dia_focal_loss(output_logits_forward_trans, output_logits_backward_trans, gold_forward, gold_backward, batchsize)
             loss.backward()
             
-            #optimizer.step()
-            #gradient_norms.append(norm)
-            # for name, param in model.named_parameters():
-            #     if param.requires_grad:
-            #         if param.grad is not None:
-            #             print("{}, gradient: {}".format(name, param.grad.mean()))
-          
-            #optimizer.step()
-            #gradient_norms.append(norm)
-            # for name, param in model.named_parameters():
-            #     if param.requires_grad:
-            #         if param.grad is not None:
-            #             print("{}, gradient: {}".format(name, param.grad.mean()))
             new_loss += loss.item() / deepnovo_config.steps_per_validation
             optimizer.step_and_update_lr()
 
