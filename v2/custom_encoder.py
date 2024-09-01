@@ -70,7 +70,7 @@ class CustomConv3D(nn.Module):
         constant_initializer(self.conv.bias, value=0.1)
 
     def forward(self, x):
-        return torch.relu(self.conv(x))
+        return self.conv(x)
 
 # # 使用示例
 # conv1 = CustomConv3D(
