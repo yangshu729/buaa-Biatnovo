@@ -48,6 +48,10 @@ class DenovoWriter(object):
         feature_id = dia_feature.feature_id
         precursor_mz = str(dia_feature.precursor_mz)
         precursor_charge = str(dia_feature.precursor_charge)
+        predicted_forward_sequence =""
+        predicted_backward_sequence = ""
+        predicted_forward_score = ""
+        predicted_backward_score = ""
         if forward_searched_sequence.sequence:
             predicted_forward_sequence = ','.join([deepnovo_config.vocab_reverse[aa_id] for
                                                     aa_id in forward_searched_sequence.sequence])

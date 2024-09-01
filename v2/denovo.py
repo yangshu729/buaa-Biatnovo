@@ -361,10 +361,13 @@ class DeepNovoAttionDenovo():
                 for denovo_result in predicted_batch:
                     denovo_writer.write(denovo_result.dia_feature, denovo_result.best_beam_search_sequence)
             else:
-                predicted_forward_batch, predicted_backward_batch = self._search_denovo_batch(batch_denovo_data, model_wrapper)
-                for denovo_forward_result, denvo_backward_result in zip(predicted_forward_batch, predicted_backward_batch):
-                    denovo_writer.write_sequences(denovo_forward_result.dia_feature, denovo_forward_result.best_beam_search_sequence, denvo_backward_result.best_beam_search_sequence)
-            
+                # predicted_forward_batch, predicted_backward_batch = self._search_denovo_batch(batch_denovo_data, model_wrapper)
+                # for denovo_forward_result, denvo_backward_result in zip(predicted_forward_batch, predicted_backward_batch):
+                #     denovo_writer.write_sequences(denovo_forward_result.dia_feature, denovo_forward_result.best_beam_search_sequence, denvo_backward_result.best_beam_search_sequence)
+                predicted_batch = self._sb_search_denovo_batch(batch_denovo_data, model_wrapper)
+                predicted_denovo_list += predicted_batch
+                for denovo_result in predicted_batch:
+                    denovo_writer.write(denovo_result.dia_feature, denovo_result.best_beam_search_sequence)
 
         return predicted_denovo_list
 

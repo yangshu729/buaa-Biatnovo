@@ -141,39 +141,49 @@ class PositionwiseFeedForward(nn.Module):
 class DecoderLayer(nn.Module):
     "Decoder is made of self-attn, src-attn, and feed forward (defined below)"
 
-    def __init__(self, d_model, d_inner, d_k, d_v, n_head, dropout):
+    def __init__(self, d_model, d_inner, n_head, dropout):
         super(DecoderLayer, self).__init__()
-        self.size = d_model
-        self.self_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
-        self.src_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
+        self.size = d_model  
+        self.self_attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        # self.self_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
+        self.src_attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
         self.feed_forward = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
      
-    def forward(self, dec_input_q, dec_input_kv, enc_output, slf_attn_mask=None, dec_enc_attn_mask=None):
+    def forward(self, dec_input_q, dec_input_kv, enc_output, attn_mask=None, key_padding_mask = None):
         # mode = True: mask scores before softmax
-        dec_output = self.self_attn(dec_input_q, dec_input_kv, dec_input_kv, mode = True, mask=slf_attn_mask)
-        dec_output = self.src_attn(dec_output, enc_output, enc_output, mode = False, mask=dec_enc_attn_mask)
-        dec_output = self.feed_forward(dec_output)
+        residual = dec_input_q
+        dec_output = self.self_attn(dec_input_q, dec_input_kv, dec_input_kv, attn_mask=attn_mask, key_padding_mask=key_padding_mask, need_weights=False)[0]
+        dec_output = self.dropout1(dec_output)
+        dec_output = self.norm1(residual + dec_output)
 
+        residual = dec_output
+        dec_output = self.src_attn(dec_output, enc_output, enc_output, attn_mask=None, key_padding_mask = None, need_weights=False)[0]
+        dec_output = self.dropout2(dec_output)
+        dec_output = self.norm2(residual + dec_output)
+
+        dec_output = self.feed_forward(dec_output)
         return dec_output
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v, d_model, d_inner, pad_idx, dropout_keep={}):
+    def __init__(self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v, d_model, d_inner, dropout_keep={}):
         super(TransformerDecoder, self).__init__()
         logger.info("Transformer Parameters - n_trg_vocab: %d, d_word_vec: %d, n_layers: %d, n_head: %d, d_k: %d, d_v: %d, d_model: %d, d_inner: %d, dropout: %.4f" % 
                 (n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v, d_model, d_inner, dropout_keep["transformer"]))
-        self.trg_word_emb = nn.Embedding(n_trg_vocab, d_word_vec, padding_idx=pad_idx)
+        self.trg_word_emb = TokenEmbedding(n_trg_vocab, d_word_vec)
         self.position_enc = PositionalEncoding(d_word_vec, dropout_keep["transformer"])
         self.dropout = nn.Dropout(p=dropout_keep["transformer"])
         self.forward_layer_stacks = nn.ModuleList(
-            [DecoderLayer(d_model, d_inner, d_k, d_v, n_head, dropout=dropout_keep["transformer"]) for _ in range(n_layers)]
+            [DecoderLayer(d_model, d_inner, n_head, dropout=dropout_keep["transformer"]) for _ in range(n_layers)]
         )
         self.backward_layer_stacks = nn.ModuleList(
-            [DecoderLayer(d_model, d_inner, d_k, d_v, n_head, dropout=dropout_keep["transformer"]) for _ in range(n_layers)]
+            [DecoderLayer(d_model, d_inner, n_head, dropout=dropout_keep["transformer"]) for _ in range(n_layers)]
         )
-        self.norm = nn.LayerNorm(d_model)
-        self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, trg_seq_l2r, trg_seq_r2l, trg_mask, enc_output, src_mask):
+    def forward(self, trg_seq_l2r, trg_seq_r2l, enc_output, attn_mask=None, key_padding_mask=None):
         dec_output_l2r = self.trg_word_emb(trg_seq_l2r)
         dec_output_l2r = self.position_enc(dec_output_l2r)
         # dec_output_l2r = self.norm(dec_output_l2r)
@@ -185,22 +195,22 @@ class TransformerDecoder(nn.Module):
             for forward_dec_layer, backward_dec_layer in zip(self.forward_layer_stacks, self.backward_layer_stacks):
                 # (batchsize * beamsize, len_q, 256)
                 dec_output_l2r_1 = forward_dec_layer(
-                    dec_output_l2r, dec_output_l2r, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_l2r, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
 
                 dec_output_l2r_2 = forward_dec_layer(
-                    dec_output_l2r, dec_output_r2l, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_l2r, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
 
                 # forward state
                 dec_output_l2r = dec_output_l2r_1 + self.relu(dec_output_l2r_2) * 0.1
 
                 dec_output_r2l_1 = backward_dec_layer(
-                    dec_output_r2l, dec_output_r2l, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
 
                 dec_output_r2l_2 = backward_dec_layer(
-                    dec_output_r2l, dec_output_l2r, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_r2l, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
                 # backward state
                 dec_output_r2l = dec_output_r2l_1 + self.relu(dec_output_r2l_2) * 0.1
@@ -208,11 +218,11 @@ class TransformerDecoder(nn.Module):
             # 独立双向
             for forward_dec_layer in self.forward_layer_stacks:
                 dec_output_l2r = forward_dec_layer(
-                    dec_output_l2r, dec_output_l2r, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_l2r, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
             for backward_dec_layer in self.backward_layer_stacks:
                 dec_output_r2l = backward_dec_layer(
-                    dec_output_r2l, dec_output_r2l, enc_output, slf_attn_mask=trg_mask, dec_enc_attn_mask=src_mask
+                    dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
         return dec_output_l2r, dec_output_r2l
 

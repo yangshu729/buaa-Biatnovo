@@ -175,7 +175,8 @@ class IonCNN(nn.Module):
 class DeepNovoAttion(nn.Module):
     def __init__(self, dropout_keep: dict):
         super(DeepNovoAttion, self).__init__()
-        self.ion_cnn = IonCNN(dropout_keep=dropout_keep)
+        self.ion_cnn_forward = IonCNN(dropout_keep=dropout_keep)
+        self.ion_cnn_backward = IonCNN(dropout_keep=dropout_keep)
         #self.spectrum_cnn = SpectrumCNN2()
         #self.spectrum_cnn = SpectrumCNN(dropout_keep)
         # self.lstm = nn.LSTM(deepnovo_config.embedding_size, deepnovo_config.num_units,
@@ -185,19 +186,20 @@ class DeepNovoAttion(nn.Module):
         self.d_k = deepnovo_config.embedding_size // deepnovo_config.n_head
         self.d_v = self.d_k
        
-        # self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
-        #                                          deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, 0,  dropout_keep=dropout_keep)
+        self.transformer = TransformerDecoder(deepnovo_config.vocab_size, deepnovo_config.embedding_size, deepnovo_config.n_layers,
+                                              deepnovo_config.n_head, self.d_k, self.d_v, deepnovo_config.d_model, deepnovo_config.d_inner, dropout_keep=dropout_keep)
         # else:    
-        self.transformer_forward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
-        self.transformer_backward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
-        # 初始化transformer模型参数
-        for p in self.transformer_forward.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-        for p in self.transformer_backward.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
+        # self.transformer_forward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
+        #  # 初始化transformer模型参数
+        # for p in self.transformer_forward.parameters():
+        #     if p.dim() > 1:
+        #         nn.init.xavier_uniform_(p)
+        # self.transformer_backward = TransformerDecoderFormal(deepnovo_config.embedding_size, deepnovo_config.n_layers, deepnovo_config.n_head, deepnovo_config.d_inner, dropout=dropout_keep["transformer"])
+        # for p in self.transformer_backward.parameters():
+        #     if p.dim() > 1:
+        #         nn.init.xavier_uniform_(p)
+        # self.transformer_forward.tgt_tok_emb.embedding.weight = self.transformer_backward.tgt_tok_emb.embedding.weight
+       
         # self.trg_word_prj = nn.Linear(1024, deepnovo_config.vocab_size, bias=False)
         self.linear = nn.Linear(512, deepnovo_config.vocab_size)
         self.combine_feature_dense1_forward = CustomLinear(768, 512, init_weight=lambda x: variance_scaling_initializer(x, 1.43),
@@ -259,17 +261,21 @@ class DeepNovoAttion(nn.Module):
         src_mask = self.get_src_mask(spectrum_cnn_outputs)
         tgt_padding_mask = (decoder_inputs_forward_trans == 0)
         seq_len = decoder_inputs_forward_trans.size(1)
-        tgt_mask=self.generate_square_subsequent_mask(seq_len)
+        tgt_mask = self.generate_square_subsequent_mask(seq_len)
         
         # true : not mask, false : mask
-        trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
-            decoder_inputs_forward_trans)
-       
-        output_transformer_forward = self.transformer_forward(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
-                                                tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        # trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
+        #     decoder_inputs_forward_trans)
         
-        output_transformer_backward = self.transformer_backward(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
-                                                tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        output_transformer_forward, output_transformer_backward = self.transformer(
+            decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+        
+                                                                                   
+        # output_transformer_forward = self.transformer_forward(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
+        #                                         tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+        
+        # output_transformer_backward = self.transformer_backward(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
+        #                                         tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
         # part 2: ion cnn
         output_forward = []
         output_backward = []
@@ -281,7 +287,12 @@ class DeepNovoAttion(nn.Module):
         ):
             for i, AA_2 in enumerate(decoder_inputs_emb):
                 input_intensity = torch.tensor(intensity_inputs[i]).cuda()
-                output, output_logit = self.ion_cnn(input_intensity)
+                if direction == "forward":
+                    output, output_logit = self.ion_cnn_forward(input_intensity)
+                elif direction == "backward":
+                    output, output_logit = self.ion_cnn_backward(input_intensity)
+                else:
+                    raise ValueError("direction must be forward or backward")
                 output = output.unsqueeze_(0)  # (1, batchsize, 512)
                 outputs.append(output)
         # (seq_len, batchsize, 512) -> (batchsize, seq_len, 512)
@@ -326,18 +337,20 @@ class InferenceModelWrapper(object):
                      candidate_intensity_backward, decoder_inputs_forward, decoder_inputs_backward):
         with torch.no_grad():
             # (batchsize * beamsize, 512)
-            output_ion_cnn_forward, _ = self.sbatt_model.ion_cnn(candidate_intensity_forward)
-            output_ion_cnn_backward, _ = self.sbatt_model.ion_cnn(candidate_intensity_backward)
-            src_mask = self.sbatt_model.get_src_mask(spectrum_cnn_outputs)
-            seq_size_forward = decoder_inputs_forward.size(0)
+            output_ion_cnn_forward, _ = self.sbatt_model.ion_cnn_forward(candidate_intensity_forward)
+            output_ion_cnn_backward, _ = self.sbatt_model.ion_cnn_backward(candidate_intensity_backward)
+            
+            # src_mask = self.sbatt_model.get_src_mask(spectrum_cnn_outputs)
             decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
             decoder_inputs_backward_trans = decoder_inputs_backward.permute(1, 0)
+            tgt_padding_mask = (decoder_inputs_forward_trans == 0)
+            seq_len = decoder_inputs_forward_trans.size(1)
+            tgt_mask = self.sbatt_model.generate_square_subsequent_mask(seq_len)
             # true : not mask, false : mask
-            trg_mask = self.sbatt_model.get_pad_mask(decoder_inputs_forward_trans, 0) & self.sbatt_model.get_subsequent_mask(
-                decoder_inputs_forward_trans)
             output_transformer_forward, output_transformer_backward = self.sbatt_model.transformer(
-                decoder_inputs_forward_trans, decoder_inputs_backward_trans, trg_mask, spectrum_cnn_outputs, src_mask=src_mask)
-            
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, 
+                spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+      
             output_transformer_forward = output_transformer_forward[:, -1, :]
             output_transformer_backward = output_transformer_backward[:, -1, :]
             output_forward = torch.cat([output_transformer_forward, output_ion_cnn_forward], dim=1)
@@ -349,15 +362,7 @@ class InferenceModelWrapper(object):
             logit_backward = self.sbatt_model.combine_feature_dense1_backward(output_backward)
             logit_backward = self.sbatt_model.combine_feature_dropout1_backward(logit_backward)
             logit_backward = self.sbatt_model.combine_feature_dense2_backward(logit_backward)
-            # logit_forward = self.sbatt_model.combine_feature_dense1(output_forward)
-            # logit_forward = self.sbatt_model.combine_feature_dropout(logit_forward)
-            # logit_forward = self.sbatt_model.combine_feature_dense2(logit_forward)
-            # logit_backward = self.sbatt_model.combine_feature_dense1(output_backward)
-            # logit_backward = self.sbatt_model.combine_feature_dropout(logit_backward)
-            # logit_backward = self.sbatt_model.combine_feature_dense2(logit_backward)
             return logit_forward, logit_backward
-
-
 
     # def inference(self, spectrum_cnn_outputs, candidate_intensity, decoder_inputs, direction_id):
     #     if direction_id == 0:

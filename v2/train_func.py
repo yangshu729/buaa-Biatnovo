@@ -90,6 +90,10 @@ def create_sb_model(dropout_keep):
     else:
         logger.info("create_model()")
     sbatt_model = sbatt_model.to(device)
+    # import torch.onnx
+    # torch.onnx.export(sbatt_model, (torch.randn(1, 1, 256).to(device), torch.randn(1, 1, 26, 40, 10).to(device), 
+    #                                 torch.randn(1, 1, 26, 40, 10).to(device), torch.randint(1, 26, (1, 1)).to(device),
+    #                                 torch.randint(1, 26, (1, 1)).to(device)), "sbatt_model.onnx") 
     
     return sbatt_model, spectrum_cnn
 

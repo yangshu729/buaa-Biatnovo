@@ -3,11 +3,11 @@
 # #!/bin/bash
 
 # Set the CUDA device to GPU 5
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=5
 
 # Define the Python script and its arguments
 PYTHON_SCRIPT="v2/main.py"
-ARGS="--train --train_dir /root/v2/sb_transformer_independent_2/"
+ARGS="--train --train_dir /root/v2/sb_transformer_independent_multheadapi/"
 
 # Function to run the Python script
 run_script() {

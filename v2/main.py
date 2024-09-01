@@ -34,12 +34,10 @@ def main():
                                              deepnovo_config.knapsack_file,
                                              beam_size=deepnovo_config.beam_size)
         
-        if deepnovo_config.is_sb:
-            sbatt_model, spectrum_cnn = create_sb_model(deepnovo_config.dropout_keep)
-            model_wrapper = InferenceModelWrapper(sbatt_model=sbatt_model, spectrum_cnn=spectrum_cnn)
-        else:
-            forward_deepnovo, backward_deepnovo, spectrum_cnn = create_model(deepnovo_config.dropout_keep)
-            model_wrapper = InferenceModelWrapper(forward_model=forward_deepnovo, backward_model=backward_deepnovo, spectrum_cnn=spectrum_cnn)
+
+        sbatt_model, spectrum_cnn = create_sb_model(deepnovo_config.dropout_keep)
+        model_wrapper = InferenceModelWrapper(sbatt_model=sbatt_model, spectrum_cnn=spectrum_cnn)
+
         writer = DenovoWriter(deepnovo_config.denovo_output_file)
         logger.info("denovo_output_file: %s", deepnovo_config.denovo_output_file)
         with torch.no_grad():
