@@ -183,12 +183,19 @@ class TransformerDecoder(nn.Module):
             [DecoderLayer(d_model, d_inner, n_head, dropout=dropout_keep["transformer"]) for _ in range(n_layers)]
         )
 
-    def forward(self, trg_seq_l2r, trg_seq_r2l, enc_output, attn_mask=None, key_padding_mask=None):
+    def forward(self, trg_seq_l2r, trg_seq_r2l, enc_output, trg_seq_l2r_predict = None, 
+                trg_seq_r2l_predict = None, attn_mask=None, key_padding_mask=None):
         dec_output_l2r = self.trg_word_emb(trg_seq_l2r)
-        dec_output_l2r = self.position_enc(dec_output_l2r)
+        dec_output_l2r = self.position_enc(dec_output_l2r) 
         # dec_output_l2r = self.norm(dec_output_l2r)
         dec_output_r2l = self.trg_word_emb(trg_seq_r2l)
         dec_output_r2l = self.position_enc(dec_output_r2l)
+        if trg_seq_l2r_predict is not None:
+            dec_output_l2r_predict = self.trg_word_emb(trg_seq_l2r_predict)
+            dec_output_l2r_predict = self.position_enc(dec_output_l2r_predict)
+        if trg_seq_r2l_predict is not None:
+            dec_output_r2l_predict = self.trg_word_emb(trg_seq_r2l_predict)
+            dec_output_r2l_predict = self.position_enc(dec_output_r2l_predict)
         # dec_output_r2l = self.norm(dec_output_r2l)
         if deepnovo_config.is_sb:
             # 交互式双向
@@ -199,7 +206,7 @@ class TransformerDecoder(nn.Module):
                 )
 
                 dec_output_l2r_2 = forward_dec_layer(
-                    dec_output_l2r, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+                    dec_output_l2r, dec_output_r2l_predict, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
 
                 # forward state
@@ -210,7 +217,7 @@ class TransformerDecoder(nn.Module):
                 )
 
                 dec_output_r2l_2 = backward_dec_layer(
-                    dec_output_r2l, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+                    dec_output_r2l, dec_output_l2r_predict, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
                 # backward state
                 dec_output_r2l = dec_output_r2l_1 + self.relu(dec_output_r2l_2) * 0.1
@@ -225,6 +232,49 @@ class TransformerDecoder(nn.Module):
                     dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
         return dec_output_l2r, dec_output_r2l
+
+    # def forward(self, trg_seq_l2r, trg_seq_r2l, enc_output, attn_mask=None, key_padding_mask=None):
+    #     dec_output_l2r = self.trg_word_emb(trg_seq_l2r)
+    #     dec_output_l2r = self.position_enc(dec_output_l2r)
+    #     # dec_output_l2r = self.norm(dec_output_l2r)
+    #     dec_output_r2l = self.trg_word_emb(trg_seq_r2l)
+    #     dec_output_r2l = self.position_enc(dec_output_r2l)
+    #     # dec_output_r2l = self.norm(dec_output_r2l)
+    #     if deepnovo_config.is_sb:
+    #         # 交互式双向
+    #         for forward_dec_layer, backward_dec_layer in zip(self.forward_layer_stacks, self.backward_layer_stacks):
+    #             # (batchsize * beamsize, len_q, 256)
+    #             dec_output_l2r_1 = forward_dec_layer(
+    #                 dec_output_l2r, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+
+    #             dec_output_l2r_2 = forward_dec_layer(
+    #                 dec_output_l2r, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+
+    #             # forward state
+    #             dec_output_l2r = dec_output_l2r_1 + self.relu(dec_output_l2r_2) * 0.1
+
+    #             dec_output_r2l_1 = backward_dec_layer(
+    #                 dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+
+    #             dec_output_r2l_2 = backward_dec_layer(
+    #                 dec_output_r2l, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+    #             # backward state
+    #             dec_output_r2l = dec_output_r2l_1 + self.relu(dec_output_r2l_2) * 0.1
+    #     else:
+    #         # 独立双向
+    #         for forward_dec_layer in self.forward_layer_stacks:
+    #             dec_output_l2r = forward_dec_layer(
+    #                 dec_output_l2r, dec_output_l2r, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+    #         for backward_dec_layer in self.backward_layer_stacks:
+    #             dec_output_r2l = backward_dec_layer(
+    #                 dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
+    #             )
+    #     return dec_output_l2r, dec_output_r2l
 
         
 class TransformerDecoderFormal(nn.Module):
