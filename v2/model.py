@@ -253,7 +253,9 @@ class DeepNovoAttion(nn.Module):
                 intensity_inputs_forward,
                 intensity_inputs_backward,
                 decoder_inputs_forward, # shape=(seq_len - 1, batch_size)
-                decoder_inputs_backward):
+                decoder_inputs_backward,
+                batch_decoder_inputs_predicted_f = None, # shape=(batch_sz, seq_len - 1):
+                batch_decoder_inputs_predicted_b = None):
         decoder_inputs_forward_emb_ion = self.word_emb(decoder_inputs_forward)
         decoder_inputs_backward_emb_ion = self.word_emb(decoder_inputs_backward)
         decoder_inputs_forward_trans = decoder_inputs_forward.permute(1, 0)
@@ -266,16 +268,17 @@ class DeepNovoAttion(nn.Module):
         # true : not mask, false : mask
         # trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
         #     decoder_inputs_forward_trans)
-        
-        output_transformer_forward, output_transformer_backward = self.transformer(
-            decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
-        
-                                                                                   
-        # output_transformer_forward = self.transformer_forward(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
-        #                                         tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
-        
-        # output_transformer_backward = self.transformer_backward(decoder_inputs_backward_trans, spectrum_cnn_outputs, 
-        #                                         tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
+
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            output_transformer_forward, output_transformer_backward = self.transformer(
+            decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs,
+            trg_seq_l2r_predict=batch_decoder_inputs_predicted_f, trg_seq_r2l_predict=batch_decoder_inputs_predicted_b,
+                attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+        else:
+            output_transformer_forward, output_transformer_backward = self.transformer(
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs,
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+            
         # part 2: ion cnn
         output_forward = []
         output_backward = []
@@ -349,7 +352,7 @@ class InferenceModelWrapper(object):
             # true : not mask, false : mask
             output_transformer_forward, output_transformer_backward = self.sbatt_model.transformer(
                 decoder_inputs_forward_trans, decoder_inputs_backward_trans, 
-                spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+                spectrum_cnn_outputs, decoder_inputs_forward_trans, decoder_inputs_backward_trans, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
       
             output_transformer_forward = output_transformer_forward[:, -1, :]
             output_transformer_backward = output_transformer_backward[:, -1, :]

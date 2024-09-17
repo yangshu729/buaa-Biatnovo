@@ -243,14 +243,15 @@ topk_output = 1
 # INPUT/OUTPUT FILES
 # ==============================================================================
 
-# input_feature_file_train = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
+# input_feature_file_train = "/root/v2/sb_transformer_independent_multheadapi_finetune_tanh/filter_train_dataset_100.csv"
 # input_spectrum_file_train = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-# denovo_input_feature_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
+extra_predicted_training_sequence_file = "/root/v2/sb_transformer_independent_multheadapi_finetune_tanh/train_dataset_100.deepnovo_denovo"
 denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
+# denovo_input_feature_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
 # denovo_input_spectrum_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
@@ -293,14 +294,16 @@ lr_mul = 0.5  # 0.5
 d_model = 256  # 256
 d_inner = 256
 n_warmup_steps = 500
-num_epoch = 15
+num_epoch = 5
 steps_per_validation = 100
 early_stop = 49 + 10
 
 # ==============================================================================
 # transform parameters
 # ==============================================================================
-is_sb = False  # whether to synchronous bidirectiona
+is_sb = True  # whether to synchronous bidirectiona
+with_extra_predicted_training_sequence = False
+concat_more = False
 n_layers = 6
 n_head = 8
 num_units = 256  # use for spectrum_cnn

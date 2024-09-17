@@ -3,10 +3,10 @@ import logging
 import os
 import pickle
 import re
-from typing import List
+from typing import List, Optional
 import numpy as np
 import torch
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from torch.utils.data import Dataset
 from DataProcess.deepnovo_cython_modules import process_spectrum,get_candidate_intensity
 import deepnovo_config
@@ -46,6 +46,8 @@ class TrainData:
     peptide_ids_backward: list
     forward_candidate_intensity: list
     backward_candidate_intensity: list
+    peptide_ids_predicted_forward: Optional[List] = field(default_factory=list)
+    peptide_ids_predicted_backward: Optional[List] = field(default_factory=list)
 
 def parse_raw_sequence(raw_sequence: str):
     raw_sequence_len = len(raw_sequence)
@@ -75,7 +77,7 @@ def parse_raw_sequence(raw_sequence: str):
     return True, peptide
 
 class DeepNovoTrainDataset(Dataset):
-    def __init__(self, feature_filename, spectrum_filename, transform=None):
+    def __init__(self, feature_filename, spectrum_filename, extra_denovo_filename = None, transform=None):
         """
         read all feature information and store in memory,
         :param feature_filename:
@@ -83,6 +85,11 @@ class DeepNovoTrainDataset(Dataset):
         """
         logger.info(f"input spectrum file: {spectrum_filename}")
         logger.info(f"input feature file: {feature_filename}")
+        if extra_denovo_filename:
+            logger.info(f"input extra denovo file: {extra_denovo_filename}")
+            self.extra_denovo_filename = extra_denovo_filename
+        else:
+            self.extra_denovo_filename = None
         self.spectrum_filename = spectrum_filename
         self.feature_filename = feature_filename
         self.input_spectrum_handle = None
@@ -92,6 +99,7 @@ class DeepNovoTrainDataset(Dataset):
         self.spectrum_count = 0
         self.input_feature_handle = open(self.feature_filename, "r")
         self.transform = transform
+        self.extra_denovo_dict = {} # {feature_id: (predicted_forward_sequence, predcited_backward_sequence)}
         # record the status of spectra that have been read
         self.feature_count = {"total": 0, "read": 0, "skipped": 0, "skipped_mass": 0}
         ### store file location of each spectrum for random access {scan:location}
@@ -184,6 +192,16 @@ class DeepNovoTrainDataset(Dataset):
                 self.feature_list.append(new_feature)
         logger.info(f"skipped_by_mass: {skipped_by_mass}, skipped_by_ptm: {skipped_by_ptm}, skipped_by_length: {skipped_by_length}")
         logger.info(f"total features: {len(self.feature_list)}")
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            with open(self.extra_denovo_filename, 'r') as fr:
+                reader = csv.DictReader(fr, delimiter='\t')
+                for row in reader:
+                    feature_id = row['feature_id']
+                    predicted_forward_sequence = row['predicted_forward_sequence']
+                    predicted_backward_sequence = row['predicted_backward_sequence']
+                    
+                    # 将feature_id作为key，predicted_forward_sequence和predicted_backward_sequence作为值存入字典
+                    self.extra_denovo_dict[feature_id] = (predicted_forward_sequence, predicted_backward_sequence)
 
     def __getitem__(self, idx):
         if self.input_spectrum_handle is None:
@@ -217,11 +235,27 @@ class DeepNovoTrainDataset(Dataset):
         # parse peptide AA sequence to list of ids
         peptide_ids = [deepnovo_config.vocab[x] for x in feature.peptide]
         peptide_ids_forward = peptide_ids[:]
+        peptide_ids_backward = peptide_ids[::-1]
+        
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            if feature.feature_id in self.extra_denovo_dict:
+                predicted_forward_sequence, predicted_backward_sequence = self.extra_denovo_dict[feature.feature_id]
+                _, predicted_forward_sequence = parse_raw_sequence(predicted_forward_sequence)
+                _, predicted_backward_sequence = parse_raw_sequence(predicted_backward_sequence)
+                predicted_forward_peptide_ids = [deepnovo_config.vocab[x] for x in predicted_forward_sequence]
+                predicted_forward_peptide_ids.insert(0, deepnovo_config.GO_ID)
+                predicted_forward_peptide_ids.append(deepnovo_config.EOS_ID)
+
+                predicted_backward_peptide_ids = [deepnovo_config.vocab[x] for x in predicted_backward_sequence]
+                predicted_backward_peptide_ids = predicted_backward_peptide_ids[::-1]
+                predicted_backward_peptide_ids.insert(0, deepnovo_config.EOS_ID)
+                predicted_backward_peptide_ids.append(deepnovo_config.GO_ID)
+
         peptide_ids_forward.insert(0, deepnovo_config.GO_ID)
         peptide_ids_forward.append(deepnovo_config.EOS_ID)
-        peptide_ids_backward = peptide_ids[::-1]
         peptide_ids_backward.insert(0, deepnovo_config.EOS_ID)
         peptide_ids_backward.append(deepnovo_config.GO_ID)
+
         prefix_mass = 0.0
         candidate_intensity_forward = []
         for i, id in enumerate(peptide_ids_forward[:-1]):
@@ -235,11 +269,20 @@ class DeepNovoTrainDataset(Dataset):
             suffix_mass += deepnovo_config.mass_ID[id]
             candidate_intensity = get_candidate_intensity(spectrum_original_backward, feature.precursor_mass, suffix_mass, 1)
             candidate_intensity_backward.append(candidate_intensity)
-        return TrainData(spectrum_holder,
-                         peptide_ids_forward,
-                         peptide_ids_backward,
-                         candidate_intensity_forward,
-                         candidate_intensity_backward)
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            return TrainData(spectrum_holder,
+                             peptide_ids_forward,
+                             peptide_ids_backward,
+                             candidate_intensity_forward,
+                             candidate_intensity_backward,
+                             predicted_forward_peptide_ids,
+                             predicted_backward_peptide_ids)
+        else:
+            return TrainData(spectrum_holder,
+                            peptide_ids_forward,
+                            peptide_ids_backward,
+                            candidate_intensity_forward,
+                            candidate_intensity_backward)
 
 
     def __len__(self):
@@ -411,6 +454,7 @@ def collate_func(train_data_list: list[TrainData]):
 
     batch_forward_intensity = []
     batch_peptide_ids_forward = []
+    batch_peptide_ids_predicted_bacward = []
 
     for data in train_data_list:
         f_intensity = np.zeros((batch_max_seq_len, intensity_shape[0], intensity_shape[1], intensity_shape[2]),
@@ -423,11 +467,22 @@ def collate_func(train_data_list: list[TrainData]):
         f_peptide[:forward_peptide_ids.shape[0]] = forward_peptide_ids
         batch_peptide_ids_forward.append(f_peptide)
 
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            predicted_b_peptide_ids = np.array(data.peptide_ids_predicted_backward, np.int64)
+            predicted_b_peptide_len = min(predicted_b_peptide_ids.shape[0], forward_peptide_ids.shape[0])
+            predicted_b_peptide = np.zeros((batch_max_seq_len,), np.int64)
+            predicted_b_peptide[:predicted_b_peptide_len] = predicted_b_peptide_ids[:predicted_b_peptide_len]
+            batch_peptide_ids_predicted_bacward.append(predicted_b_peptide)
+            batch_peptide_ids_predicted_bacward = torch.from_numpy(np.stack(batch_peptide_ids_predicted_bacward))  # [batch_size, batch_max_seq_len]
+
+
     batch_forward_intensity = torch.from_numpy(np.stack(batch_forward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
     batch_peptide_ids_forward = torch.from_numpy(np.stack(batch_peptide_ids_forward))  # [batch_size, batch_max_seq_len]
-
+    
     batch_backward_intensity = []
     batch_peptide_ids_backward = []
+    batch_peptide_ids_predicted_forward = []
+
     for data in train_data_list:
         b_intensity = np.zeros((batch_max_seq_len, intensity_shape[0], intensity_shape[1], intensity_shape[2]),
                                np.float32)
@@ -440,15 +495,33 @@ def collate_func(train_data_list: list[TrainData]):
         b_peptide[:backward_peptide_ids.shape[0]] = backward_peptide_ids
         batch_peptide_ids_backward.append(b_peptide)
 
+        if deepnovo_config.with_extra_predicted_training_sequence:
+            predicted_f_peptide_ids = np.array(data.peptide_ids_predicted_forward, np.int64)
+            predicted_f_peptide_len = min(predicted_f_peptide_ids.shape[0], backward_peptide_ids.shape[0])
+            predicted_f_peptide = np.zeros((batch_max_seq_len,), np.int64)
+            predicted_f_peptide[:predicted_f_peptide_len] = predicted_f_peptide_ids[:predicted_f_peptide_len]
+            batch_peptide_ids_predicted_forward.append(predicted_f_peptide)
+            batch_peptide_ids_predicted_forward = torch.from_numpy(np.stack(batch_peptide_ids_predicted_forward))  # [batch_size, batch_max_seq_len]
+
+
     batch_backward_intensity = torch.from_numpy(
         np.stack(batch_backward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
     batch_peptide_ids_backward = torch.from_numpy(np.stack(batch_peptide_ids_backward))  # [batch_size, batch_max_seq_len]
-
-    return (spectrum_holder,
-            batch_forward_intensity,
-            batch_backward_intensity,
-            batch_peptide_ids_forward,
-            batch_peptide_ids_backward)
+    
+    if deepnovo_config.with_extra_predicted_training_sequence:
+        return (spectrum_holder,
+                batch_forward_intensity,
+                batch_backward_intensity,
+                batch_peptide_ids_forward,
+                batch_peptide_ids_backward,
+                batch_peptide_ids_predicted_forward,
+                batch_peptide_ids_predicted_bacward)
+    else:
+        return (spectrum_holder,
+                batch_forward_intensity,
+                batch_backward_intensity,
+                batch_peptide_ids_forward,
+                batch_peptide_ids_backward)
 
 class DeepNovoDenovoDataset(DeepNovoTrainDataset):
     # override the _get_spectrum method
