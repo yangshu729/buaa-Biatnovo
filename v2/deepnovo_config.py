@@ -300,7 +300,7 @@ early_stop = 49 + 10
 # ==============================================================================
 # transform parameters
 # ==============================================================================
-is_sb = False  # whether to synchronous bidirectiona
+is_sb = True  # whether to synchronous bidirectiona
 n_layers = 6
 n_head = 8
 num_units = 256  # use for spectrum_cnn

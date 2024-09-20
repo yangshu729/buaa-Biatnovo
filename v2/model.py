@@ -347,10 +347,15 @@ class InferenceModelWrapper(object):
             seq_len = decoder_inputs_forward_trans.size(1)
             tgt_mask = self.sbatt_model.generate_square_subsequent_mask(seq_len)
             # true : not mask, false : mask
-            output_transformer_forward, output_transformer_backward = self.sbatt_model.transformer(
-                decoder_inputs_forward_trans, decoder_inputs_backward_trans, 
-                spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
-      
+            if deepnovo_config.is_sb:
+                output_transformer_forward, output_transformer_backward = self.sbatt_model.transformer(
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs,
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+            else:
+                output_transformer_forward, output_transformer_backward = self.sbatt_model.transformer(
+                    decoder_inputs_forward_trans, decoder_inputs_backward_trans, 
+                    spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+        
             output_transformer_forward = output_transformer_forward[:, -1, :]
             output_transformer_backward = output_transformer_backward[:, -1, :]
             output_forward = torch.cat([output_transformer_forward, output_ion_cnn_forward], dim=1)

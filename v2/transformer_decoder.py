@@ -210,7 +210,7 @@ class TransformerDecoder(nn.Module):
                 )
 
                 # forward state
-                dec_output_l2r = dec_output_l2r_1 + self.relu(dec_output_l2r_2) * 0.1
+                dec_output_l2r = dec_output_l2r_1 + F.tanh(dec_output_l2r_2) * 0.1
 
                 dec_output_r2l_1 = backward_dec_layer(
                     dec_output_r2l, dec_output_r2l, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
@@ -220,7 +220,7 @@ class TransformerDecoder(nn.Module):
                     dec_output_r2l, dec_output_l2r_predict, enc_output, attn_mask = attn_mask, key_padding_mask = key_padding_mask
                 )
                 # backward state
-                dec_output_r2l = dec_output_r2l_1 + self.relu(dec_output_r2l_2) * 0.1
+                dec_output_r2l = dec_output_r2l_1 + F.tanh(dec_output_r2l_2) * 0.1
         else:
             # 独立双向
             for forward_dec_layer in self.forward_layer_stacks:
