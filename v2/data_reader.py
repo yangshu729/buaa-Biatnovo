@@ -279,13 +279,13 @@ class DeepNovoTrainDataset(Dataset):
         if neighbor_left_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_left_count):
                 spectrum_holder_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_forward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_backward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
 
         ### parse and add neighbor spectra
@@ -341,13 +341,13 @@ class DeepNovoTrainDataset(Dataset):
         if neighbor_right_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_right_count):
                 spectrum_holder_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_forward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_backward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
 
         spectrum_holder = np.vstack(spectrum_holder_list)
