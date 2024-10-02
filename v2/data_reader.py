@@ -113,6 +113,8 @@ class DeepNovoTrainDataset(Dataset):
             spectrum_location_dict = {}
             spectrum_rtinseconds_dict = {}
             line = True
+            if self.input_spectrum_handle is None:
+                self.input_spectrum_handle = open(self.spectrum_filename, 'r')
             while line:
                 current_location = self.input_spectrum_handle.tell()
                 line = self.input_spectrum_handle.readline()
@@ -138,6 +140,8 @@ class DeepNovoTrainDataset(Dataset):
                     ),
                     fw,
                 )
+            self.input_spectrum_handle.close()
+            self.input_spectrum_handle = None
         # read feature file
         skipped_by_mass = 0
         skipped_by_ptm = 0
@@ -154,6 +158,10 @@ class DeepNovoTrainDataset(Dataset):
             feature_area_index = header.index(deepnovo_config.col_feature_area)
             ms1_index = header.index(deepnovo_config.col_ms1_list)
             for line in reader:
+                if line[mz_index] == "":
+                    skipped_by_mass += 1
+                    logger.debug(f"{line[seq_index]} skipped by empty mz")
+                    continue      
                 mass = (float(line[mz_index]) - deepnovo_config.mass_H) * float(line[z_index])
                 ok, peptide = parse_raw_sequence(line[seq_index])
                 if not ok:
