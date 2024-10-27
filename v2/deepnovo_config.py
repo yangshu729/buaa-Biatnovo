@@ -50,30 +50,30 @@ GO_ID = 1
 EOS_ID = 2
 
 vocab_reverse = [
-    "A",
-    "R",
-    "N",
-    "N(Deamidation)",
-    "D",
+    "A", # 3
+    "R", # 4
+    "N", # 5
+    "N(Deamidation)", # 6
+    "D", # 7
     # ~ 'C',
-    "C(Carbamidomethylation)",
-    "E",
-    "Q",
-    "Q(Deamidation)",
-    "G",
-    "H",
-    "I",
-    "L",
-    "K",
-    "M",
-    "M(Oxidation)",
-    "F",
-    "P",
-    "S",
-    "T",
-    "W",
-    "Y",
-    "V",
+    "C(Carbamidomethylation)", # 8
+    "E", # 9
+    "Q", # 10
+    "Q(Deamidation)", # 11
+    "G", # 12
+    "H", # 13
+    "I", # 14
+    "L", # 15
+    "K", # 16
+    "M", # 17
+    "M(Oxidation)", # 18
+    "F", # 19
+    "P", # 20
+    "S", # 21
+    "T", # 22
+    "W", # 23
+    "Y", # 24
+    "V", # 25
 ]
 
 vocab_reverse = _START_VOCAB + vocab_reverse
@@ -150,7 +150,7 @@ WINDOW_SIZE = 10  # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
-MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION)  # 30k
+MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION)  # 150000
 KNAPSACK_AA_RESOLUTION = 10000  # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION))  # 57.02146
 KNAPSACK_MASS_PRECISION_TOLERANCE = 100  # 0.01 Da
@@ -186,12 +186,17 @@ print("l2_weight ", l2_weight)
 embedding_size = 256
 print("embedding_size ", embedding_size)
 
-
 dropout_keep = {
   "conv" : 0.75,
   "dense" : 0.5,
-  "transformer": 0.5
+  "transformer": 0.1
 }
+
+# dropout_keep = {
+#   "conv" : 1,
+#   "dense" : 1,
+#   "transformer": 0
+# }
 
 logger.info(f"dropout_keep: {dropout_keep}")
 
@@ -202,7 +207,7 @@ batch_size = 128
 print("batch_size ", batch_size)
 logger.info(f"batchsize: {batch_size}")
 
-batch_size_predict = 32
+batch_size_predict = 128
 print("batch_size_predict: ", batch_size_predict)
 logger.info(f"batch_size_predict: {batch_size_predict}")
 
@@ -237,19 +242,28 @@ topk_output = 1
 # ==============================================================================
 # INPUT/OUTPUT FILES
 # ==============================================================================
+
+# input_feature_file_train = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
+# input_spectrum_file_train = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
-denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
+denovo_input_feature_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.feature.csv"
+# denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.feature.csv"
+# denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
+# denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
+# denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.spectrum.mgf"
+# denovo_input_spectrum_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
+denovo_input_spectrum_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
-
+denovo_output_dir = "/root/v2/predict"
 # pre-built knapsack matrix
 knapsack_file = "knapsack.npy"
 
-denovo_output_file = denovo_input_feature_file + str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
+denovo_output_file = denovo_output_dir + '/' + denovo_input_feature_file.split('/')[-1] \
++ str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
 
 # ==============================================================================
 # feature file column format
@@ -280,14 +294,18 @@ col_feature_area = "feature area"
 cuda = True
 lr_mul = 0.5  # 0.5
 d_model = 256  # 256
-n_warmup_steps = 4000
-num_epoch = 30
-steps_per_validation = 100
+d_inner = 256
+n_warmup_steps = 500
+num_epoch = 15
+steps_per_validation = 800
 early_stop = 49 + 10
 
 # ==============================================================================
 # transform parameters
 # ==============================================================================
+is_sb = True  # whether to synchronous bidirectiona
+concat_more = False  # whether to concatenate more features
 n_layers = 6
-print(n_layers)
-print("aaaaaa")
+n_head = 8
+num_units = 256  # use for spectrum_cnn
+lstm_layers = 2

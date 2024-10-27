@@ -32,7 +32,8 @@ def predict(opt, model):
     worker_io.predict()
     worker_denovo = deepnovo_worker_denovo.WorkerDenovo()
     # worker_denovo = deepnovo_worker_denovo_forward_backward.WorkerDenovo()
-    worker_denovo.search_denovo(model, worker_io)
+    #worker_denovo.search_denovo(model, worker_io)
+    worker_denovo.search_denovo_bi_indepedent(model, worker_io, opt)
 
 
 def main():

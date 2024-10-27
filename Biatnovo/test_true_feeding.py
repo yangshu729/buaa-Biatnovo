@@ -1,8 +1,8 @@
 import imp
 from warnings import catch_warnings
 from six.moves import xrange  # pylint: disable=redefined-builtin
-import deepnovo_config
-import deepnovo_config_dda
+import Biatnovo.deepnovo_config as deepnovo_config
+import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
 import numpy as np
 import torch
 
@@ -212,7 +212,7 @@ def test_logit_single_2_score(
     prob_forward = []
     prob_backward = []
     # average forward-backward prediction logit
-    # 去掉结束的符号
+    # 去掉结束的符号 (seq_len, 26)
     logit_forward = output_logit_forward[:decoder_input_len].cpu().detach().numpy()  # first word ... last word
     # logit_forward = output_logit_forward[:decoder_input_len]  # first word ... last word
     # print("logit_forward:", logit_forward)
@@ -221,22 +221,7 @@ def test_logit_single_2_score(
     # print("output_logit_forward", output_logit_forward)
     # print("output_logit_backward", output_logit_backward)
     logit_backward = logit_backward[::-1]
-    # # softmax
-    # Logsoftmax = torch.nn.LogSoftmax(dim=1)
-    # prob_forward = Logsoftmax(logit_forward).cpu().detach().numpy()
-    # prob_backward = Logsoftmax(logit_backward).cpu().detach().numpy()[::-1]
-    # # # 标准答案的分数
-
-    #
-    #
-    # for i in range(decoder_input_len):
-    #   deco = decoder_input_forward[i + 1]
-    #   output_forward.append(prob_forward[i][deco])
-    #   output_backward.append(prob_backward[i][deco])
-    # score_forward = sum([i for i in output_forward]) / len(output_forward)
-    #
-    # score_backward = sum([i for i in output_backward]) / len(output_backward)
-
+  
     for x, y in zip(logit_forward, logit_backward):
         prob_forward.append(np.exp(x) / np.sum(np.exp(x)))  # 26个字母中出现的概率
         prob_backward.append(np.exp(y) / np.sum(np.exp(y)))
@@ -265,6 +250,7 @@ def test_logit_single_2_score(
     # print("score forward: ", score_forward)
     # print("score backward: ", score_backward)
     # print("score sum: ", score_sum)
+    aaid_sequence = decoder_input_forward[1 : decoder_input_len + 1]
     decoder_string = [deepnovo_config.vocab_reverse[x] for x in decoder_input_forward[1 : decoder_input_len + 1]]
     # print("decoder string:", decoder_string)
     position_score = [math.log(i) + math.log(j) for i, j in zip(output_forward, output_backward)]
@@ -281,7 +267,7 @@ def test_logit_single_2_score(
     #          "\t" + str(score_sum) + "\n"
     #   f.write(line)
 
-    return decoder_string, score_sum, position_score
+    return decoder_string, score_sum, position_score, aaid_sequence
     # return test_AA_true_feeding_single(decoder_input_forward, output, direction=0)
 
 
@@ -301,7 +287,7 @@ def test_logit_batch_2_score(
         decoder_input_backward = [x[batch] for x in decoder_inputs_backward]  # (bucket)
 
         # print(output_logits_forward)
-        dec_string, score_sum, position_score = test_logit_single_2_score(
+        dec_string, score_sum, position_score, aaid_sequence = test_logit_single_2_score(
             decoder_input_forward,
             decoder_input_backward,
             output_logits_forward[seq_len_begin:seq_len_end, :],
@@ -313,6 +299,7 @@ def test_logit_batch_2_score(
         output["dec_string"] = dec_string
         output["score_sum"] = score_sum
         output["position_score"] = position_score
+        output["aaid_sequence"] = aaid_sequence
         output_batch.append(output)
         index += 1
     # print("output_batch:", output_batch)
@@ -357,6 +344,7 @@ def test_accuracy_score(model, data_set, bucket_id, opt):
             True,
         )
         # output_logits_forward( seq len, 26)
+        # decoder_inputs_forward( seq len, batch size)
         output_batch = test_logit_batch_2_score(
             decoder_inputs_forward[:decoder_size],
             decoder_inputs_backward[:decoder_size],

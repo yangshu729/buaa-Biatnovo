@@ -238,7 +238,7 @@ class WorkerDenovo(object):
                     data, bucket_id, status = result
                     if data:
                         data_set[bucket_id].append(data)
-                        spectrum_index[bucket_id].append(spectrum_id)
+                        spectrum_index[bucket_id].append(spectrum_id)  # 记录spectrum的index
             for bucket_id in xrange(len(self._buckets)):
                 if data_set[bucket_id]:  # bucket not empty
                     print("test_set - bucket {0}".format(bucket_id))
@@ -2009,7 +2009,7 @@ class WorkerDenovo(object):
                 "mass_tolerance": self.precursor_mass_tolerance,
             }
             for x in spectrum_batch
-        ]
+        ]  # list of dict, size= batchsize
         peak_list.append(peak_batch)
         mass_EOS = self.mass_ID[self.EOS_ID]
         peak_batch = [
@@ -2019,7 +2019,7 @@ class WorkerDenovo(object):
                 "mass_tolerance": self.precursor_mass_tolerance,
             }
             for x in spectrum_batch
-        ]
+        ]  # list of dict, size= batchsize
         peak_list.append(peak_batch)
         argmax_mass_batch = []
         argmax_mass_complement_batch = []

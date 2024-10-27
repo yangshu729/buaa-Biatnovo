@@ -16,6 +16,7 @@ def main():
     # FLAGS (options) for test accuray
     # ==============================================================================
     parser.add_argument("--test_accuracy", action="store_true", default=False, help="Set to True to test.")
+    parser.add_argument("--test_accuracy_position", action="store_true", default=False, help="Set to True to test.")
     parser.add_argument(
         "--target_file",
         type=str,
@@ -27,6 +28,7 @@ def main():
     )
     parser.add_argument("--accuracy_file", type=str, default="accuracy.txt", help="Accuracy file.")
     parser.add_argument("--denovo_only_file", type=str, default="denovo_only.txt", help="Deepnovo_only file.")
+    parser.add_argument("--accuracy_position_file", type=str, default="accuracy_position.txt", help="Accuracy position file.")
 
     opt = parser.parse_args()
 
@@ -41,7 +43,10 @@ def main():
     test accuracy
     """
     worker_test = deepnovo_worker_test.WorkerTest(opt)
-    worker_test.test_accuracy()
+    if opt.test_accuracy:
+        worker_test.test_accuracy()
+    elif opt.test_accuracy_position:
+        worker_test.test_accuracy_position()
     #worker_test.test_accuracy_position_bleu()
     #worker_test.test_accuracy_smith_waterman()
 

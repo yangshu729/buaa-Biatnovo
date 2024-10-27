@@ -113,6 +113,8 @@ class DeepNovoTrainDataset(Dataset):
             spectrum_location_dict = {}
             spectrum_rtinseconds_dict = {}
             line = True
+            if self.input_spectrum_handle is None:
+                self.input_spectrum_handle = open(self.spectrum_filename, 'r')
             while line:
                 current_location = self.input_spectrum_handle.tell()
                 line = self.input_spectrum_handle.readline()
@@ -138,6 +140,8 @@ class DeepNovoTrainDataset(Dataset):
                     ),
                     fw,
                 )
+            self.input_spectrum_handle.close()
+            self.input_spectrum_handle = None
         # read feature file
         skipped_by_mass = 0
         skipped_by_ptm = 0
@@ -154,6 +158,10 @@ class DeepNovoTrainDataset(Dataset):
             feature_area_index = header.index(deepnovo_config.col_feature_area)
             ms1_index = header.index(deepnovo_config.col_ms1_list)
             for line in reader:
+                if line[mz_index] == "":
+                    skipped_by_mass += 1
+                    logger.debug(f"{line[seq_index]} skipped by empty mz")
+                    continue      
                 mass = (float(line[mz_index]) - deepnovo_config.mass_H) * float(line[z_index])
                 ok, peptide = parse_raw_sequence(line[seq_index])
                 if not ok:
@@ -279,13 +287,13 @@ class DeepNovoTrainDataset(Dataset):
         if neighbor_left_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_left_count):
                 spectrum_holder_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_forward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_backward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
 
         ### parse and add neighbor spectra
@@ -341,13 +349,13 @@ class DeepNovoTrainDataset(Dataset):
         if neighbor_right_count < neighbor_size_half:
             for x in range(neighbor_size_half - neighbor_right_count):
                 spectrum_holder_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_forward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
                 spectrum_original_backward_list.append(np.zeros(
-                    shape=(1, self.MZ_SIZE),
+                    shape=(1, deepnovo_config.MZ_SIZE),
                     dtype=np.float32))
 
         spectrum_holder = np.vstack(spectrum_holder_list)
@@ -392,7 +400,7 @@ class DeepNovoTrainDataset(Dataset):
             line = input_file_handle.readline()
 
         return mz_list, intensity_list
-
+    
 
 def collate_func(train_data_list: list[TrainData]):
     """
@@ -400,9 +408,10 @@ def collate_func(train_data_list: list[TrainData]):
     :param train_data_list: list of TrainData
     :return:
     """
-    # sort data by seq length (decreasing order)
-    train_data_list.sort(key=lambda x: len(x.peptide_ids_forward), reverse=True)
-    batch_max_seq_len = len(train_data_list[0].peptide_ids_forward)
+    
+    #train_data_list.sort(key=lambda x: len(x.peptide_ids_forward), reverse=True)
+    # batch_max_seq_len = len(train_data_list[0].peptide_ids_forward)
+    batch_max_seq_len = max([len(x.peptide_ids_forward) for x in train_data_list])
     intensity_shape = train_data_list[0].forward_candidate_intensity[0].shape
     spectrum_holder = [x.spectrum_holder for x in train_data_list]
     spectrum_holder = np.stack(spectrum_holder) # [batch_size, neibor, mz_size]

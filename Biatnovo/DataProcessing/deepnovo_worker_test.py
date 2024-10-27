@@ -8,6 +8,7 @@ import sys
 import os
 
 import numpy as np
+import pandas as pd
 
 # Get the parent directory's path
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -32,16 +33,149 @@ class WorkerTest(object):
         self.predicted_file = opt.predict_file
         self.accuracy_file = opt.accuracy_file
         self.denovo_only_file = opt.denovo_only_file
+        self.accuracy_position_file = opt.accuracy_position_file
         print("target_file = {0:s}".format(self.target_file))
         print("predicted_file = {0:s}".format(self.predicted_file))
         print("accuracy_file = {0:s}".format(self.accuracy_file))
         print("denovo_only_file = {0:s}".format(self.denovo_only_file))
+        print("accuracy_position_file = {0:s}".format(self.accuracy_position_file))
 
         self.target_dict = {}
         self.predicted_list = []
 
         # 增加mass_matrix的初始化
         self.mass_matrix = np.load("mass_matrix.npy")
+
+    def test_accuracy_position(self, db_peptide_list=None):
+        """TODO(nh2tran): docstring."""
+        print("".join(["="] * 80))  # section-separating line
+        print("WorkerTest.test_accuracy()")
+
+        self._get_target()
+        target_count_total = len(self.target_dict)
+        target_len_total = sum([len(x) for x in self.target_dict.values()])
+
+        # this part is tricky!
+        # some target peptides are reported by PEAKS DB but not found in
+        #   db_peptide_list due to mistakes in cleavage rules.
+        # if db_peptide_list is given, we only consider those target peptides,
+        #   otherwise, use all target peptides
+        target_dict_db = {}
+        if db_peptide_list is not None:
+            for feature_id, target in self.target_dict.items():
+                target_simplied = target
+                # remove the extension 'mod' from variable modifications
+                target_simplied = ["M" if x == "M(Oxidation)" else x for x in target_simplied]
+                target_simplied = ["N" if x == "N(Deamidation)" else x for x in target_simplied]
+                target_simplied = ["Q" if x == "Q(Deamidation)" else x for x in target_simplied]
+                if target_simplied in db_peptide_list:
+                    target_dict_db[feature_id] = target
+                else:
+                    print("target not found: ", target_simplied)
+        else:
+            target_dict_db = self.target_dict
+        target_count_db = len(target_dict_db)
+        target_len_db = sum([len(x) for x in target_dict_db.values()])
+
+        # we also skip target peptides with precursor_mass > MZ_MAX
+        target_dict_db_mass = {}
+        for feature_id, peptide in target_dict_db.items():
+            if self._compute_peptide_mass(peptide) <= self.MZ_MAX:
+                target_dict_db_mass[feature_id] = peptide
+        target_count_db_mass = len(target_dict_db_mass)
+        target_len_db_mass = sum([len(x) for x in target_dict_db_mass.values()])
+
+        # read predicted peptides from deepnovo or peaks
+        self._get_predicted()
+
+        # note that the prediction has already skipped precursor_mass > MZ_MAX
+        # we also skip predicted peptides whose feature_id's are not in target_dict_db_mass
+        predicted_count_mass = len(self.predicted_list)
+        predicted_count_mass_db = 0
+        predicted_len_mass_db = 0
+        predicted_only = 0
+        # the recall is calculated on remaining peptides
+        recall_AA_total = 0.0
+        recall_peptide_total = 0.0
+
+        # 初始化一个字典来统计每个位置的匹配情况
+        position_stats = {}  # 例如 {0: {'match': 0, 'total': 0}, 1: {'match': 0, 'total': 0}, ...}
+
+        # record scan with multiple features
+        scan_dict = {}
+        cc = 0
+        for index, predicted in enumerate(self.predicted_list):
+            feature_id = predicted["feature_id"]
+            feature_area = str(predicted["feature_area"])
+            feature_scan_list_middle = predicted["scan_list_middle"]
+            feature_scan_list_original = predicted["scan_list_original"]
+            if feature_scan_list_original:
+                for scan in re.split(";|\r|\n", feature_scan_list_original):
+                    if scan in scan_dict:
+                        scan_dict[scan]["feature_count"] += 1
+                        scan_dict[scan]["feature_list"].append(feature_id)
+                    else:
+                        scan_dict[scan] = {}
+                        scan_dict[scan]["feature_count"] = 1
+                        scan_dict[scan]["feature_list"] = [feature_id]
+
+            if feature_id in target_dict_db_mass:
+                predicted_count_mass_db += 1
+
+                target = target_dict_db_mass[feature_id]
+                target_len = len(target)
+
+                # if >= 1 denovo peptides reported, calculate the best accuracy, 如果一个feature有不止一个sequence
+                best_matched_positions = []
+                best_predicted_sequence = predicted["sequence"][0]
+                best_predicted_score = predicted["score"][0]
+
+                for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
+                    predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
+                    target_AA_id = [deepnovo_config.vocab[x] for x in target]
+                     # 获取匹配的位置
+                    matched_positions = self._match_AA_novor_positions(target_AA_id, predicted_AA_id)
+                    
+                    
+                    if len(matched_positions) > len(best_matched_positions) or (
+                        len(matched_positions) == len(best_matched_positions) and predicted_score > best_predicted_score
+                    ):
+                        best_matched_positions = matched_positions
+                        best_predicted_sequence = predicted_sequence[:]
+                        best_predicted_score = predicted_score
+                matched_positions = best_matched_positions
+                predicted_sequence = best_predicted_sequence[:]
+                predicted_score = best_predicted_score
+
+                # 统计每个位置的匹配情况
+                for i in range(len(target_AA_id)):
+                    if i not in position_stats:
+                        position_stats[i] = {'match': 0, 'total': 0}
+                    
+                    if i in matched_positions:  # 如果该位置匹配成功
+                        position_stats[i]['match'] += 1
+                    
+                    position_stats[i]['total'] += 1  # 不论是否匹配，增加总数
+
+        # 计算每个位置的匹配次数、总次数和准确率，并将其转换为数据框
+        position_accuracy = []
+        for pos, stats in position_stats.items():
+            accuracy = stats['match'] / stats['total'] if stats['total'] > 0 else 0
+            position_accuracy.append({
+                'Position': pos,
+                'Match Count': stats['match'],
+                'Total Count': stats['total'],
+                'Accuracy': accuracy
+            })
+
+        # 将结果转换为 pandas DataFrame
+        df = pd.DataFrame(position_accuracy)
+
+        # 将结果保存为 CSV 文件
+        df.to_csv(self.accuracy_position_file, index=False)
+
+        print(f"Position accuracy saved to {self.accuracy_position_file}.")
+
 
     def test_accuracy(self, db_peptide_list=None):
         """TODO(nh2tran): docstring."""
@@ -146,8 +280,6 @@ class WorkerTest(object):
                         scan_dict[scan]["feature_list"] = [feature_id]
 
             if feature_id in target_dict_db_mass:
-                if (feature_id == "F1:6312") : 
-                    print(predicted["feature_id"])
                 predicted_count_mass_db += 1
 
                 target = target_dict_db_mass[feature_id]
@@ -486,8 +618,6 @@ class WorkerTest(object):
                 line_split = re.split("\t|\n", line)
                 predicted = {}
                 predicted["feature_id"] = line_split[col_feature_id]
-                if (predicted["feature_id"] == "F1:6312") : 
-                    print(predicted["feature_id"])
                 predicted["feature_area"] = float(line_split[col_feature_area])
                 predicted["scan_list_middle"] = line_split[col_scan_list_middle]
                 predicted["scan_list_original"] = line_split[col_scan_list_original]
@@ -553,6 +683,41 @@ class WorkerTest(object):
                 index += 1
 
         return peptide
+    
+    def _match_AA_novor_positions(self, target, predicted):
+        """
+        返回匹配的氨基酸位置。
+        
+        参数:
+        - target: 目标肽段的氨基酸序列
+        - predicted: 预测肽段的氨基酸序列
+        
+        返回:
+        - match_positions: 一个列表，包含匹配的位置。
+        """
+        
+        match_positions = []
+        target_len = len(target)
+        predicted_len = len(predicted)
+        target_mass = [deepnovo_config.mass_ID[x] for x in target]
+        target_mass_cum = np.cumsum(target_mass)
+        predicted_mass = [deepnovo_config.mass_ID[x] for x in predicted]
+        predicted_mass_cum = np.cumsum(predicted_mass)
+
+        i = 0
+        j = 0
+        while i < target_len and j < predicted_len:
+            if abs(target_mass_cum[i] - predicted_mass_cum[j]) < 0.5:
+                if abs(target_mass[i] - predicted_mass[j]) < 0.1:
+                    match_positions.append(i)  # 记录匹配的位置
+                i += 1
+                j += 1
+            elif target_mass_cum[i] < predicted_mass_cum[j]:
+                i += 1
+            else:
+                j += 1
+
+        return match_positions
 
     def _match_AA_novor(self, target, predicted):
         """TODO(nh2tran): docstring."""
