@@ -1,1 +1,0 @@
-python Biatnovo/predict_sb.py --model ~/train_dir/translate.ckpt --predict_dir ~/predict_dir/ --predict_spectrum /root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf --predict_feature /root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv --use_intensity --use_lstm

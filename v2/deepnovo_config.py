@@ -249,10 +249,13 @@ input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatN
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-# denovo_input_feature_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.feature.csv"
+denovo_input_feature_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.feature.csv"
+# denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.feature.csv"
+# denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
+# denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
+# denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.spectrum.mgf"
 # denovo_input_spectrum_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
-denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.spectrum.mgf"
+denovo_input_spectrum_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
 denovo_output_dir = "/root/v2/predict"
@@ -294,16 +297,15 @@ d_model = 256  # 256
 d_inner = 256
 n_warmup_steps = 500
 num_epoch = 15
-steps_per_validation = 100
+steps_per_validation = 800
 early_stop = 49 + 10
 
 # ==============================================================================
 # transform parameters
 # ==============================================================================
 is_sb = True  # whether to synchronous bidirectiona
+concat_more = False  # whether to concatenate more features
 n_layers = 6
 n_head = 8
 num_units = 256  # use for spectrum_cnn
 lstm_layers = 2
-print(n_layers)
-print("aaaaaa")

@@ -16,24 +16,24 @@ class BeamSearchedSequence:
 class DenovoWriter(object):
     def __init__(self, denovo_output_file):
         self.log_file = denovo_output_file
-        if deepnovo_config.is_sb:
-            header_list = ["feature_id",
-                        "feature_area",
-                        "predicted_sequence",
-                        "predicted_score",
-                        "predicted_position_score",
-                        "precursor_mz",
-                        "precursor_charge",
-                        "protein_access_id",
-                        "scan_list_middle",
-                        "scan_list_original",
-                        "predicted_score_max"]
-        else:
-            header_list = ["feature_id",
-                        "predicted_forward_sequence",
-                        "predicted_backward_sequence",
-                        "predicted_forward_score",
-                        "predicted_backward_score"]
+       
+        header_list = ["feature_id",
+                    "feature_area",
+                    "predicted_sequence",
+                    "predicted_score",
+                    "predicted_position_score",
+                    "precursor_mz",
+                    "precursor_charge",
+                    "protein_access_id",
+                    "scan_list_middle",
+                    "scan_list_original",
+                    "predicted_score_max"]
+        # else:
+        #     header_list = ["feature_id",
+        #                 "predicted_forward_sequence",
+        #                 "predicted_backward_sequence",
+        #                 "predicted_forward_score",
+        #                 "predicted_backward_score"]
         header_row = "\t".join(header_list)
         with open(self.log_file, 'a') as self.output_handle:
             print(header_row, file=self.output_handle, end='\n')

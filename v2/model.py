@@ -266,10 +266,15 @@ class DeepNovoAttion(nn.Module):
         # true : not mask, false : mask
         # trg_mask = self.get_pad_mask(decoder_inputs_forward_trans, 0) & self.get_subsequent_mask(
         #     decoder_inputs_forward_trans)
-        
-        output_transformer_forward, output_transformer_backward = self.transformer(
-            decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
-        
+
+        if deepnovo_config.is_sb:
+            output_transformer_forward, output_transformer_backward = self.transformer(
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs,
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+        else:
+            output_transformer_forward, output_transformer_backward = self.transformer(
+                decoder_inputs_forward_trans, decoder_inputs_backward_trans, spectrum_cnn_outputs, attn_mask=tgt_mask, key_padding_mask=tgt_padding_mask)
+            
                                                                                    
         # output_transformer_forward = self.transformer_forward(decoder_inputs_forward_trans, spectrum_cnn_outputs, 
         #                                         tgt_mask = tgt_mask, tgt_key_padding_mask=tgt_padding_mask)
