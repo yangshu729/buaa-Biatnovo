@@ -268,7 +268,6 @@ knapsack_file = "knapsack.npy"
 
 denovo_output_file = os.environ.get("DENOVO_OUTPUT_FILE", denovo_input_feature_file.split('/')[-1]+ str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo")
 denovo_output_file = os.path.join(denovo_output_dir, denovo_output_file)
-print("denovo_output_file ", denovo_output_file)
 # ==============================================================================
 # feature file column format
 # ==============================================================================
