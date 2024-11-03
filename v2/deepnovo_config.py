@@ -10,6 +10,7 @@ import logging
 
 import numpy as np
 import calendar
+import os
 
 import time
 # ==============================================================================
@@ -245,26 +246,29 @@ topk_output = 1
 
 # input_feature_file_train = "/root/buaa-Biatnovo/mock_oc_test_4.feature.csv"
 # input_spectrum_file_train = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
+denovo_input_dir = os.environ.get("DENOVO_INPUT_DIR", "/root/biatnovo/self_make_output/plasma/")
 input_feature_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/train_dataset_unique.csv"
 input_spectrum_file_train = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_spectrum_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
 input_feature_file_valid = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/valid_dataset_unique.csv"
-denovo_input_feature_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.feature.csv"
+denovo_input_feature_file = os.path.join(denovo_input_dir, "features.csv")
+denovo_input_spectrum_file = os.path.join(denovo_input_dir, "spectrum.mgf")
+# denovo_input_feature_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.feature.csv"
 # denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.feature.csv"
 # denovo_input_feature_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.feature.csv"
 # denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/oc/oc_test.spectrum.mgf"
 # denovo_input_spectrum_file = "/root/biatnovo/DeepNovo-DIA/uti/uti_test.spectrum.mgf"
 # denovo_input_spectrum_file = "/root/biatnovo/train-data/ftp.peptideatlas.org/biatNovo/training.spectrum.mgf"
-denovo_input_spectrum_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.spectrum.mgf"
+# denovo_input_spectrum_file = "/root/biatnovo/self_make_output/plasma/testing_plasma.spectrum.mgf"
 # input_spectrum_file_test = "/root/biatnovo/deenovov2/spectrum.mgf"
 # input_feature_file_test = "ABRF_DDA/features.csv.identified.test.nodup"
-denovo_output_dir = "/root/v2/predict"
+denovo_output_dir = os.environ.get("DENOVO_OUTPUT_DIR", "/root/v2/predict")
 # pre-built knapsack matrix
 knapsack_file = "knapsack.npy"
 
-denovo_output_file = denovo_output_dir + '/' + denovo_input_feature_file.split('/')[-1] \
-+ str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo"
-
+denovo_output_file = os.environ.get("DENOVO_OUTPUT_FILE", denovo_input_feature_file.split('/')[-1]+ str(calendar.timegm(time.gmtime())) + ".deepnovo_denovo")
+denovo_output_file = os.path.join(denovo_output_dir, denovo_output_file)
+print("denovo_output_file ", denovo_output_file)
 # ==============================================================================
 # feature file column format
 # ==============================================================================

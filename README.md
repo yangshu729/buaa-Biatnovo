@@ -41,8 +41,14 @@ mv sbatt_deepnovo.pth /root/checkpoints
 mv spectrum_cnn.pth /root/checkpoints
 ```
 
-2. Run command:
+2. Download test feature/MGF files and run command:
 ```bash
+export DENOVO_INPUT_DIR=/root/input_data
+# You need to download/prepare feature (features.csv)/MGF (spectrum.mgf) files and put them into the DENOVO_INPUT_DIR
+export DENOVO_OUTPUT_DIR=/root/outputs
+export DENOVO_OUTPUT_FILE=output.csv
+mkdir -p $DENOVO_INPUT_DIR
+mkdir -p $DENOVO_OUTPUT_DIR
 bash ./predict_v2.sh
 ```
 to start inference.
