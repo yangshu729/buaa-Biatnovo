@@ -8,7 +8,7 @@
 import os.path
 import numpy as np
 import torch
-import deepnovo_config
+from v2 import deepnovo_config
 import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity_dda

@@ -15,7 +15,7 @@ import os
 import numpy as np
 import pickle
 
-import deepnovo_config
+from v2 import deepnovo_config
 from Biatnovo import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import process_spectrum
 
