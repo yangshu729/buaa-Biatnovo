@@ -15,7 +15,7 @@ import os
 import numpy as np
 import pickle
 
-import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
+from v2 import deepnovo_config
 from Biatnovo import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import process_spectrum
 
@@ -36,16 +36,16 @@ class WorkerIO(object):
 
         # we currently use deepnovo_config to store both const & settings
         # the settings should be shown in __init__() to keep track carefully
-        self.MZ_MAX = deepnovo_config_dda.MZ_MAX
-        self.MZ_SIZE = deepnovo_config_dda.MZ_SIZE
-        self.batch_size = deepnovo_config_dda.batch_size
-        self.header_seq = deepnovo_config_dda.header_seq
+        self.MZ_MAX = deepnovo_config.MZ_MAX
+        self.MZ_SIZE = deepnovo_config.MZ_SIZE
+        self.batch_size = deepnovo_config.batch_size
+        self.header_seq = deepnovo_config.header_seq
         if type == "DIA":
-            self.neighbor_size = deepnovo_config_dda.neighbor_size
+            self.neighbor_size = deepnovo_config.neighbor_size
         elif type == "DDA":
             self.neighbor_size = deepnovo_config_dda.neighbor_size
         print("neighbor_size = {0:d}".format(self.neighbor_size))
-        self.dia_window = deepnovo_config_dda.dia_window
+        self.dia_window = deepnovo_config.dia_window
 
         self.input_spectrum_file = input_spectrum_file
         self.input_feature_file = input_feature_file
@@ -77,7 +77,7 @@ class WorkerIO(object):
 
     def predict(self, type="DIA"):
         if type == "DIA":
-            self.batch_size = deepnovo_config_dda.batch_size_predict
+            self.batch_size = deepnovo_config.batch_size_predict
         elif type == "DDA":
             self.batch_size = deepnovo_config_dda.batch_size_predict
 
@@ -119,7 +119,7 @@ class WorkerIO(object):
                 ms1_list,
             ) = self._parse_feature(feature_location)
             # skip if precursor_mass > MZ_MAX
-            precursor_mass = precursor_mz * precursor_charge - deepnovo_config_dda.mass_H * precursor_charge
+            precursor_mass = precursor_mz * precursor_charge - deepnovo_config.mass_H * precursor_charge
             if precursor_mass > self.MZ_MAX:
                 self.feature_count["skipped"] += 1
                 self.feature_count["skipped_mass"] += 1
@@ -432,15 +432,15 @@ class WorkerIO(object):
         self.input_feature_handle.seek(feature_location)
         line = self.input_feature_handle.readline()
         line = re.split(",|\r|\n", line)
-        feature_id = line[deepnovo_config_dda.col_feature_id]
-        feature_area_str = line[deepnovo_config_dda.col_feature_area]
+        feature_id = line[deepnovo_config.col_feature_id]
+        feature_area_str = line[deepnovo_config.col_feature_area]
         feature_area = float(feature_area_str) if feature_area_str else 1.0
-        precursor_mz = float(line[deepnovo_config_dda.col_precursor_mz])
-        precursor_charge = float(line[deepnovo_config_dda.col_precursor_charge])
-        rt_mean = float(line[deepnovo_config_dda.col_rt_mean])
-        raw_sequence = line[deepnovo_config_dda.col_raw_sequence]
-        scan_list = re.split(";", line[deepnovo_config_dda.col_scan_list])
-        ms1_list = re.split(";", line[deepnovo_config_dda.col_ms1_list])
+        precursor_mz = float(line[deepnovo_config.col_precursor_mz])
+        precursor_charge = float(line[deepnovo_config.col_precursor_charge])
+        rt_mean = float(line[deepnovo_config.col_rt_mean])
+        raw_sequence = line[deepnovo_config.col_raw_sequence]
+        scan_list = re.split(";", line[deepnovo_config.col_scan_list])
+        ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
         if (len(scan_list) != len(ms1_list)):
             ms1_list = ["1:1"] * len(scan_list)  # mock ms1_list数据
         assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
@@ -559,7 +559,7 @@ class WorkerI(object):
                 ms1_list,
             ) = self._parse_feature(feature_location, input_feature_file_handle)
             # skip if precursor_mass > MZ_MAX
-            precursor_mass = precursor_mz * precursor_charge - deepnovo_config_dda.mass_H * precursor_charge
+            precursor_mass = precursor_mz * precursor_charge - deepnovo_config.mass_H * precursor_charge
             if precursor_mass > self.MZ_MAX:
                 continue
 
@@ -610,14 +610,14 @@ class WorkerI(object):
         input_file_handle.seek(feature_location)
         line = input_file_handle.readline()
         line = re.split(",|\r|\n", line)
-        feature_id = line[deepnovo_config_dda.col_feature_id]
+        feature_id = line[deepnovo_config.col_feature_id]
         feature_area = 0  # float(line[deepnovo_config.col_feature_area])
-        precursor_mz = float(line[deepnovo_config_dda.col_precursor_mz])
-        precursor_charge = float(line[deepnovo_config_dda.col_precursor_charge])
-        rt_mean = float(line[deepnovo_config_dda.col_rt_mean])
-        raw_sequence = line[deepnovo_config_dda.col_raw_sequence]
-        scan_list = re.split(";", line[deepnovo_config_dda.col_scan_list])
-        ms1_list = re.split(";", line[deepnovo_config_dda.col_ms1_list])
+        precursor_mz = float(line[deepnovo_config.col_precursor_mz])
+        precursor_charge = float(line[deepnovo_config.col_precursor_charge])
+        rt_mean = float(line[deepnovo_config.col_rt_mean])
+        raw_sequence = line[deepnovo_config.col_raw_sequence]
+        scan_list = re.split(";", line[deepnovo_config.col_scan_list])
+        ms1_list = re.split(";", line[deepnovo_config.col_ms1_list])
         assert len(scan_list) == len(ms1_list), "Error: scan_list and ms1_list not matched."
 
         return (
