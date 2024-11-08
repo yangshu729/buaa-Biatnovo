@@ -4,14 +4,14 @@ import os
 import time
 import torch
 import torch.optim as optim
-from Biatnovo.Model.optim import ScheduledOptim
+from v2.optim import ScheduledOptim
 from test_accuracy import cal_dia_focal_loss
 from v2.data_reader import *
 from v2 import deepnovo_config
 import logging
 
 from v2.model import DeepNovoAttion, SpectrumCNN2
-from v2.test_accuracy import cal_sb_dia_focal_loss, test_logit_batch_2
+from v2.test_accuracy import test_logit_batch_2
 
 forward_model_save_name = 'forward_deepnovo.pth'
 backward_model_save_name = 'backward_deepnovo.pth'

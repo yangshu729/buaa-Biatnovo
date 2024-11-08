@@ -15,7 +15,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Add the parent directory to sys.path
 sys.path.insert(0, parent_dir)
-import deepnovo_config
+import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
 
 
 class WorkerTest(object):
@@ -27,7 +27,7 @@ class WorkerTest(object):
 
         # we currently use deepnovo_config to store both const & settings
         # the settings should be shown in __init__() to keep track carefully
-        self.MZ_MAX = deepnovo_config.MZ_MAX
+        self.MZ_MAX = deepnovo_config_dda.MZ_MAX
 
         self.target_file = opt.target_file
         self.predicted_file = opt.predict_file
@@ -131,8 +131,8 @@ class WorkerTest(object):
                 best_predicted_score = predicted["score"][0]
 
                 for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
-                    predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
-                    target_AA_id = [deepnovo_config.vocab[x] for x in target]
+                    predicted_AA_id = [deepnovo_config_dda.vocab[x] for x in predicted_sequence]
+                    target_AA_id = [deepnovo_config_dda.vocab[x] for x in target]
                      # 获取匹配的位置
                     matched_positions = self._match_AA_novor_positions(target_AA_id, predicted_AA_id)
                     
@@ -291,8 +291,8 @@ class WorkerTest(object):
                 best_predicted_score = predicted["score"][0]
 
                 for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
-                    predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
-                    target_AA_id = [deepnovo_config.vocab[x] for x in target]
+                    predicted_AA_id = [deepnovo_config_dda.vocab[x] for x in predicted_sequence]
+                    target_AA_id = [deepnovo_config_dda.vocab[x] for x in target]
                     recall_AA = self._match_AA_novor(target_AA_id, predicted_AA_id)
                     # print(predicted_sequence)
                     # print(target, recall_AA)
@@ -566,8 +566,8 @@ class WorkerTest(object):
                 for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
                     # predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
                     # target_AA_id = [deepnovo_config.vocab[x] for x in target]
-                    predicted_AA_id = [deepnovo_config.vocab[x] - 3 for x in predicted_sequence]
-                    target_AA_id = [deepnovo_config.vocab[x] - 3 for x in target]
+                    predicted_AA_id = [deepnovo_config_dda.vocab[x] - 3 for x in predicted_sequence]
+                    target_AA_id = [deepnovo_config_dda.vocab[x] - 3 for x in target]
                     sw_score = self._cal_smith_waterman(target_AA_id, predicted_AA_id, 1, 1)
 
                 sw_score_total += sw_score
@@ -590,9 +590,9 @@ class WorkerTest(object):
         # ~ print("WorkerDB: _compute_peptide_mass()")
 
         peptide_mass = (
-            deepnovo_config.mass_N_terminus
-            + sum(deepnovo_config.mass_AA[aa] for aa in peptide)
-            + deepnovo_config.mass_C_terminus
+            deepnovo_config_dda.mass_N_terminus
+            + sum(deepnovo_config_dda.mass_AA[aa] for aa in peptide)
+            + deepnovo_config_dda.mass_C_terminus
         )
 
         return peptide_mass
@@ -605,12 +605,12 @@ class WorkerTest(object):
         print("WorkerTest._get_predicted()")
 
         predicted_list = []
-        col_feature_id = deepnovo_config.pcol_feature_id
-        col_feature_area = deepnovo_config.pcol_feature_area
-        col_sequence = deepnovo_config.pcol_sequence
-        col_score = deepnovo_config.pcol_score
-        col_scan_list_middle = deepnovo_config.pcol_scan_list_middle
-        col_scan_list_original = deepnovo_config.pcol_scan_list_original
+        col_feature_id = deepnovo_config_dda.pcol_feature_id
+        col_feature_area = deepnovo_config_dda.pcol_feature_area
+        col_sequence = deepnovo_config_dda.pcol_sequence
+        col_score = deepnovo_config_dda.pcol_score
+        col_scan_list_middle = deepnovo_config_dda.pcol_scan_list_middle
+        col_scan_list_original = deepnovo_config_dda.pcol_scan_list_original
         with open(self.predicted_file, "r") as handle:
             # header
             handle.readline()
@@ -644,7 +644,7 @@ class WorkerTest(object):
             for line in handle:
                 line = re.split(",|\r|\n", line)
                 feature_id = line[0]
-                raw_sequence = line[deepnovo_config.col_raw_sequence]
+                raw_sequence = line[deepnovo_config_dda.col_raw_sequence]
                 assert raw_sequence, "Error: wrong target format."
                 peptide = self._parse_sequence(raw_sequence)
                 target_dict[feature_id] = peptide
@@ -699,9 +699,9 @@ class WorkerTest(object):
         match_positions = []
         target_len = len(target)
         predicted_len = len(predicted)
-        target_mass = [deepnovo_config.mass_ID[x] for x in target]
+        target_mass = [deepnovo_config_dda.mass_ID[x] for x in target]
         target_mass_cum = np.cumsum(target_mass)
-        predicted_mass = [deepnovo_config.mass_ID[x] for x in predicted]
+        predicted_mass = [deepnovo_config_dda.mass_ID[x] for x in predicted]
         predicted_mass_cum = np.cumsum(predicted_mass)
 
         i = 0
@@ -728,9 +728,9 @@ class WorkerTest(object):
         num_match = 0
         target_len = len(target)
         predicted_len = len(predicted)
-        target_mass = [deepnovo_config.mass_ID[x] for x in target]
+        target_mass = [deepnovo_config_dda.mass_ID[x] for x in target]
         target_mass_cum = np.cumsum(target_mass)
-        predicted_mass = [deepnovo_config.mass_ID[x] for x in predicted]
+        predicted_mass = [deepnovo_config_dda.mass_ID[x] for x in predicted]
         predicted_mass_cum = np.cumsum(predicted_mass)
 
         i = 0

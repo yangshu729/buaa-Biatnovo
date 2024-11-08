@@ -8,7 +8,7 @@
 import os.path
 import numpy as np
 import torch
-import deepnovo_config
+import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
 import deepnovo_config_dda
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity
 from DataProcess.deepnovo_cython_modules import get_candidate_intensity_dda
@@ -35,31 +35,31 @@ class WorkerDenovo(object):
         if type == "DIA":
             # we currently use deepnovo_config to store both const & settings
             # the settings should be shown in __init__() to keep track carefully
-            self.neighbor_center = deepnovo_config.neighbor_size // 2  # 2
-            self.knapsack_file = deepnovo_config.knapsack_file
-            self.MZ_MAX = deepnovo_config.MZ_MAX
-            self.mass_N_terminus = deepnovo_config.mass_N_terminus
-            self.mass_C_terminus = deepnovo_config.mass_C_terminus
-            self.KNAPSACK_AA_RESOLUTION = deepnovo_config.KNAPSACK_AA_RESOLUTION
-            self.vocab_size = deepnovo_config.vocab_size
-            self.GO_ID = deepnovo_config.GO_ID
-            self.EOS_ID = deepnovo_config.EOS_ID
-            self.mass_ID = deepnovo_config.mass_ID
+            self.neighbor_center = deepnovo_config_dda.neighbor_size // 2  # 2
+            self.knapsack_file = deepnovo_config_dda.knapsack_file
+            self.MZ_MAX = deepnovo_config_dda.MZ_MAX
+            self.mass_N_terminus = deepnovo_config_dda.mass_N_terminus
+            self.mass_C_terminus = deepnovo_config_dda.mass_C_terminus
+            self.KNAPSACK_AA_RESOLUTION = deepnovo_config_dda.KNAPSACK_AA_RESOLUTION
+            self.vocab_size = deepnovo_config_dda.vocab_size
+            self.GO_ID = deepnovo_config_dda.GO_ID
+            self.EOS_ID = deepnovo_config_dda.EOS_ID
+            self.mass_ID = deepnovo_config_dda.mass_ID
             # 增加PAD_ID
-            self.PAD_ID = deepnovo_config.PAD_ID
-            self.precursor_mass_tolerance = deepnovo_config.precursor_mass_tolerance
-            self.precursor_mass_ppm = deepnovo_config.precursor_mass_ppm
-            self.num_position = deepnovo_config.num_position
-            self.SPECTRUM_RESOLUTION = deepnovo_config.SPECTRUM_RESOLUTION
-            self.mass_AA_min_round = deepnovo_config.mass_AA_min_round
-            self.beam_size = deepnovo_config.beam_size
-            self.vocab_reverse = deepnovo_config.vocab_reverse
-            self.topk_output = deepnovo_config.topk_output
+            self.PAD_ID = deepnovo_config_dda.PAD_ID
+            self.precursor_mass_tolerance = deepnovo_config_dda.precursor_mass_tolerance
+            self.precursor_mass_ppm = deepnovo_config_dda.precursor_mass_ppm
+            self.num_position = deepnovo_config_dda.num_position
+            self.SPECTRUM_RESOLUTION = deepnovo_config_dda.SPECTRUM_RESOLUTION
+            self.mass_AA_min_round = deepnovo_config_dda.mass_AA_min_round
+            self.beam_size = deepnovo_config_dda.beam_size
+            self.vocab_reverse = deepnovo_config_dda.vocab_reverse
+            self.topk_output = deepnovo_config_dda.topk_output
             print("knapsack_file = {0:s}".format(self.knapsack_file))
             # knapsack matrix will be loaded/built at the beginning of search_denovo()
             self.knapsack_matrix = None
-            self.vocab = deepnovo_config.vocab
-            self._buckets = deepnovo_config._buckets
+            self.vocab = deepnovo_config_dda.vocab
+            self._buckets = deepnovo_config_dda._buckets
             self.get_candidate_intensity = get_candidate_intensity
         elif type == "DDA":
             # we currently use deepnovo_config to store both const & settings

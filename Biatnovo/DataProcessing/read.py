@@ -4,7 +4,7 @@ import random
 import gc
 import sys
 import traceback
-import deepnovo_config
+import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
 from Biatnovo.DataProcessing.deepnovo_worker_io import WorkerI
 from functools import partial
 from multiprocessing import Pool
@@ -101,7 +101,7 @@ def read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr, opt):
         return None, None, status
     # skip if peptide length > MAX_LEN (train: 30; decode:50)
     peptide_len = len(peptide)
-    if peptide_len > deepnovo_config.MAX_LEN:
+    if peptide_len > deepnovo_config_dda.MAX_LEN:
         status = "length"
         return None, None, status
 
@@ -109,28 +109,28 @@ def read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr, opt):
     # counter_read += 1
     # 选择最近的bucket_id
     ### prepare forward, backward, and padding
-    for bucket_id, target_size in enumerate(deepnovo_config._buckets):
+    for bucket_id, target_size in enumerate(deepnovo_config_dda._buckets):
         if peptide_len + 2 <= target_size:  # +2 to include GO and EOS
             break
-    decoder_size = deepnovo_config._buckets[bucket_id]
+    decoder_size = deepnovo_config_dda._buckets[bucket_id]
     # parse peptide AA sequence to list of ids
     # peptide_ids为对肽段每个字母的编码，用id进行代替 按照config中定义的顺序
-    peptide_ids = [deepnovo_config.vocab[x] for x in peptide]
+    peptide_ids = [deepnovo_config_dda.vocab[x] for x in peptide]
     # padding
     # 长度短的肽段进行补齐，补0
     pad_size = decoder_size - (len(peptide_ids) + 2)
     # forward, 进行padding
     if opt.direction == 0 or opt.direction == 2:
         peptide_ids_forward = peptide_ids[:]
-        peptide_ids_forward.insert(0, deepnovo_config.GO_ID)
-        peptide_ids_forward.append(deepnovo_config.EOS_ID)
-        peptide_ids_forward += [deepnovo_config.PAD_ID] * pad_size
+        peptide_ids_forward.insert(0, deepnovo_config_dda.GO_ID)
+        peptide_ids_forward.append(deepnovo_config_dda.EOS_ID)
+        peptide_ids_forward += [deepnovo_config_dda.PAD_ID] * pad_size
     # backward
     if opt.direction == 1 or opt.direction == 2:
         peptide_ids_backward = peptide_ids[::-1]
-        peptide_ids_backward.insert(0, deepnovo_config.EOS_ID)
-        peptide_ids_backward.append(deepnovo_config.GO_ID)
-        peptide_ids_backward += [deepnovo_config.PAD_ID] * pad_size
+        peptide_ids_backward.insert(0, deepnovo_config_dda.EOS_ID)
+        peptide_ids_backward.append(deepnovo_config_dda.GO_ID)
+        peptide_ids_backward += [deepnovo_config_dda.PAD_ID] * pad_size
 
     ### retrieve candidate_intensity for test/decode_true_feeding
     # 默认不打开beam search选项
@@ -142,7 +142,7 @@ def read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr, opt):
             # 针对每一个肽段的字母
             for index in xrange(decoder_size):
                 # 计算前缀质量
-                prefix_mass += deepnovo_config.mass_ID[peptide_ids_forward[index]]
+                prefix_mass += deepnovo_config_dda.mass_ID[peptide_ids_forward[index]]
                 # print("prefix_mass:", prefix_mass)
                 # 变为（26， 40， 10），返回precursor质量以及prefix质量对应的候选强度值
                 candidate_intensity = get_candidate_intensity(
@@ -154,7 +154,7 @@ def read_single_spectrum(feature_index, worker_i, feature_fr, spectrum_fr, opt):
             candidate_intensity_list_backward = []
             suffix_mass = 0.0
             for index in xrange(decoder_size):
-                suffix_mass += deepnovo_config.mass_ID[peptide_ids_backward[index]]
+                suffix_mass += deepnovo_config_dda.mass_ID[peptide_ids_backward[index]]
                 candidate_intensity = get_candidate_intensity(
                     spectrum_original_backward, precursor_mass, suffix_mass, 1
                 )
@@ -228,7 +228,7 @@ def read_single_spectrum_true_feeding(spectrum_batch, peptide_sequence, opt):
 
     # skip if peptide length > MAX_LEN (train: 30; decode:50)
     peptide_len = len(peptide)
-    if peptide_len > deepnovo_config.MAX_LEN:
+    if peptide_len > deepnovo_config_dda.MAX_LEN:
         status = "length"
         return None, None, status
 
@@ -236,28 +236,28 @@ def read_single_spectrum_true_feeding(spectrum_batch, peptide_sequence, opt):
     # counter_read += 1
     # 选择最近的bucket_id
     ### prepare forward, backward, and padding
-    for bucket_id, target_size in enumerate(deepnovo_config._buckets):
+    for bucket_id, target_size in enumerate(deepnovo_config_dda._buckets):
         if peptide_len + 2 <= target_size:  # +2 to include GO and EOS
             break
-    decoder_size = deepnovo_config._buckets[bucket_id]
+    decoder_size = deepnovo_config_dda._buckets[bucket_id]
     # parse peptide AA sequence to list of ids
     # peptide_ids为对肽段每个字母的编码，用id进行代替 按照config中定义的顺序
-    peptide_ids = [deepnovo_config.vocab[x] for x in peptide]
+    peptide_ids = [deepnovo_config_dda.vocab[x] for x in peptide]
     # padding
     # 长度短的肽段进行补齐，补0
     pad_size = decoder_size - (len(peptide_ids) + 2)
     # forward, 进行padding
     if opt.direction == 0 or opt.direction == 2:
         peptide_ids_forward = peptide_ids[:]
-        peptide_ids_forward.insert(0, deepnovo_config.GO_ID)
-        peptide_ids_forward.append(deepnovo_config.EOS_ID)
-        peptide_ids_forward += [deepnovo_config.PAD_ID] * pad_size
+        peptide_ids_forward.insert(0, deepnovo_config_dda.GO_ID)
+        peptide_ids_forward.append(deepnovo_config_dda.EOS_ID)
+        peptide_ids_forward += [deepnovo_config_dda.PAD_ID] * pad_size
     # backward
     if opt.direction == 1 or opt.direction == 2:
         peptide_ids_backward = peptide_ids[::-1]
-        peptide_ids_backward.insert(0, deepnovo_config.EOS_ID)
-        peptide_ids_backward.append(deepnovo_config.GO_ID)
-        peptide_ids_backward += [deepnovo_config.PAD_ID] * pad_size
+        peptide_ids_backward.insert(0, deepnovo_config_dda.EOS_ID)
+        peptide_ids_backward.append(deepnovo_config_dda.GO_ID)
+        peptide_ids_backward += [deepnovo_config_dda.PAD_ID] * pad_size
 
     ### retrieve candidate_intensity for test/decode_true_feeding
     # 默认不打开beam search选项
@@ -269,7 +269,7 @@ def read_single_spectrum_true_feeding(spectrum_batch, peptide_sequence, opt):
             # 针对每一个肽段的字母
             for index in xrange(decoder_size):
                 # 计算前缀质量
-                prefix_mass += deepnovo_config.mass_ID[peptide_ids_forward[index]]
+                prefix_mass += deepnovo_config_dda.mass_ID[peptide_ids_forward[index]]
                 # print("prefix_mass:", prefix_mass)
                 # 变为（26， 40， 10），返回precursor质量以及prefix质量对应的候选强度值
                 candidate_intensity = get_candidate_intensity(
@@ -281,7 +281,7 @@ def read_single_spectrum_true_feeding(spectrum_batch, peptide_sequence, opt):
             candidate_intensity_list_backward = []
             suffix_mass = 0.0
             for index in xrange(decoder_size):
-                suffix_mass += deepnovo_config.mass_ID[peptide_ids_backward[index]]
+                suffix_mass += deepnovo_config_dda.mass_ID[peptide_ids_backward[index]]
                 candidate_intensity = get_candidate_intensity(
                     spectrum_original_backward, precursor_mass, suffix_mass, 1
                 )
@@ -360,7 +360,7 @@ def read_spectra(worker_io, feature_index_list, opt):
     print("read_spectra()")
     # 根据肽段长度将谱图划分为bucket
     # assign spectrum into buckets according to peptide length
-    data_set = [[] for _ in deepnovo_config._buckets]
+    data_set = [[] for _ in deepnovo_config_dda._buckets]
 
     # use single/multi processor to read data during training
     worker_i = WorkerI(worker_io)

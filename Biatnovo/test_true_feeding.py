@@ -1,7 +1,5 @@
-import imp
-from warnings import catch_warnings
 from six.moves import xrange  # pylint: disable=redefined-builtin
-import Biatnovo.deepnovo_config as deepnovo_config
+import v2.deepnovo_config as deepnovo_config
 import Biatnovo.deepnovo_config_dda as deepnovo_config_dda
 import numpy as np
 import torch
